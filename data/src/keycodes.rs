@@ -2,7 +2,8 @@
 //!
 //! A target id is a stable string the view passes back:
 //! `k:<usage>` a key, `c:<usage>` a media/consumer usage, `m:<mods>` a modifier alone,
-//! `macro:<n>` macro n (0-based), `fn`, `none`. Modifiers held with a key are passed beside it.
+//! `macro:<n>` macro n (0-based), `fn`, `none`, and `s:<usage>:<mods>` a ready-made shortcut
+//! (⇧⌘4 and the like). Modifiers held with a `k:` key are passed beside it.
 
 use crate::protocol::{consumer_code, key_code, macro_code, Code, FN_CODE};
 
@@ -94,6 +95,48 @@ pub fn usage_label(usage: u8) -> Option<String> {
     }
 }
 
+/// Ready-made Mac shortcuts, one click each: (group, name, key usage, modifiers).
+/// Modifier bits: ⌃ 0x01, ⇧ 0x02, ⌥ 0x04, ⌘ 0x08.
+pub const SHORTCUTS: &[(&str, &str, u8, u8)] = &[
+    ("Screenshots", "Whole screen", 0x20, 0x0a),          // ⇧⌘3
+    ("Screenshots", "Selected area", 0x21, 0x0a),         // ⇧⌘4
+    ("Screenshots", "Screenshot and record", 0x22, 0x0a), // ⇧⌘5
+    ("Screenshots", "Area to clipboard", 0x21, 0x0b),     // ⌃⇧⌘4
+    ("Screenshots", "Screen to clipboard", 0x20, 0x0b),   // ⌃⇧⌘3
+    ("Mac shortcuts", "Copy", 0x06, 0x08),
+    ("Mac shortcuts", "Paste", 0x19, 0x08),
+    ("Mac shortcuts", "Cut", 0x1b, 0x08),
+    ("Mac shortcuts", "Undo", 0x1d, 0x08),
+    ("Mac shortcuts", "Redo", 0x1d, 0x0a),
+    ("Mac shortcuts", "Select all", 0x04, 0x08),
+    ("Mac shortcuts", "Find", 0x09, 0x08),
+    ("Mac shortcuts", "Save", 0x16, 0x08),
+    ("Mac shortcuts", "Spotlight", 0x2c, 0x08),
+    ("Mac shortcuts", "Switch apps", 0x2b, 0x08),
+    ("Mac shortcuts", "Mission Control", 0x52, 0x01),
+    ("Mac shortcuts", "Emoji & symbols", 0x2c, 0x09),
+    ("Mac shortcuts", "Lock screen", 0x14, 0x09),
+    ("Mac shortcuts", "Force quit", 0x29, 0x0c),
+    ("Mac shortcuts", "New tab", 0x17, 0x08),
+    ("Mac shortcuts", "Close window", 0x1a, 0x08),
+    ("Mac shortcuts", "Quit app", 0x14, 0x08),
+];
+
+/// The ready-made shortcut a code is, if any: its target id and name.
+pub fn shortcut_of(code: Code) -> Option<(String, &'static str)> {
+    let [0, mods, _, usage] = code else { return None };
+    SHORTCUTS
+        .iter()
+        .find(|s| s.2 == usage && s.3 == mods)
+        .map(|s| (format!("s:{}:{}", s.2, s.3), s.1))
+}
+
+/// The target a code shows as chosen in the picker: a ready-made shortcut when it is one.
+pub fn selected(code: Code) -> (String, u8) {
+    let (id, mods) = target_of(code);
+    (shortcut_of(code).map_or(id, |s| s.0), mods)
+}
+
 /// Everything a key can be set to (macros listed by the caller, who knows their names).
 pub fn targets(macros: &[String]) -> Vec<Target> {
     let mut v = vec![
@@ -108,6 +151,11 @@ pub fn targets(macros: &[String]) -> Vec<Target> {
             group: "Special",
         },
     ];
+    v.extend(SHORTCUTS.iter().map(|&(group, name, usage, mods)| Target {
+        id: format!("s:{usage}:{mods}"),
+        label: format!("{name} {}", describe(key_code(usage, mods), &[])),
+        group,
+    }));
     let key = |usage: u8, group| Target {
         id: format!("k:{usage}"),
         label: usage_label(usage).unwrap_or_default(),
@@ -146,6 +194,10 @@ pub fn code_for(id: &str, mods: u8) -> Option<Code> {
         "none" => Some([0; 4]),
         "fn" => Some(FN_CODE),
         "k" => rest.parse().ok().map(|u| key_code(u, mods)),
+        "s" => {
+            let (u, m) = rest.split_once(':')?;
+            Some(key_code(u.parse().ok()?, m.parse().ok()?))
+        }
         "m" => rest.parse::<u8>().ok().map(|b| key_code(0, b | mods)),
         "c" => rest.parse().ok().map(consumer_code),
         "macro" => rest.parse().ok().map(|i| macro_code(i, 1, 1)),
@@ -228,7 +280,7 @@ mod tests {
     fn targets_round_trip_through_codes() {
         for t in targets(&["Hello".into()]) {
             let code = code_for(&t.id, 0).unwrap();
-            assert_eq!(target_of(code).0, t.id, "{}", t.label);
+            assert_eq!(selected(code).0, t.id, "{}", t.label);
         }
     }
 
@@ -243,6 +295,11 @@ mod tests {
             "⇧⌘4"
         );
         assert_eq!(describe(code_for("m:2", 0).unwrap(), &[]), "Left Shift");
+        // A ready-made shortcut is the same code as building it by hand, and is shown as itself.
+        let shot = code_for("s:33:10", 0).unwrap();
+        assert_eq!(shot, code_for("k:33", MOD_LGUI | MOD_LSHIFT).unwrap());
+        assert_eq!(selected(shot), ("s:33:10".into(), MOD_LGUI | MOD_LSHIFT));
+        assert_eq!(shortcut_of(shot).map(|s| s.1), Some("Selected area"));
         assert_eq!(describe(code_for("c:233", 0).unwrap(), &[]), "Volume Up");
     }
 }

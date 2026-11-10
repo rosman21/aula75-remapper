@@ -418,7 +418,7 @@ component KeyPicker
               text "Click what it should do instead. It saves right away and takes you back to the keyboard."
                 testId="pick-help"
           row gap=8 align-items="center" flex-wrap="wrap"
-            text (combo == "" ? "For a shortcut such as ⌘C, turn on its modifiers first, then click the key:" : `Clicking a key now makes ${combo} + that key.`)
+            text (combo == "" ? "For your own shortcut such as ⇧⌘4, turn on its modifiers, then click the key on the board (numbers are its second row). Ready-made Mac shortcuts are listed below it." : `Clicking a key on the board now makes ${combo} + that key.`)
               color="-exact-secondary-label" font="-exact-footnote"
             button aria-pressed=cmd press=setCmd(not cmd) buttonStyle=(cmd ? "filled" : "bordered") testId="mod-cmd"
               text "⌘ Command"

@@ -17,7 +17,35 @@ test "a key becomes a combination on the Fn layer"
   tap "pick-k-6"
   clock data
   clock settle
-  expect state keymap.rows.3 .keys.1 .action == "⌘C"
+  expect state keymap.rows.3 .keys.1 .action == "Copy (⌘C)"
+
+test "a ready-made screenshot shortcut is one click"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "layer-fn"
+  clock data
+  tap "key-15"
+  clock settle
+  tap "pick-s-33-10"
+  clock data
+  clock settle
+  expect state keymap.rows.3 .keys.2 .action == "Selected area (⇧⌘4)"
+
+test "a number key takes modifiers, for a shortcut of your own"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "layer-fn"
+  clock data
+  tap "key-21"
+  clock settle
+  tap "mod-cmd"
+  tap "mod-shift"
+  tap "pick-k-34"
+  clock data
+  clock settle
+  expect state keymap.rows.3 .keys.3 .action == "Screenshot and record (⇧⌘5)"
 
 test "Caps Lock becomes Escape and the factory keys come back"
   clock data

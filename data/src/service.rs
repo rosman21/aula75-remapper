@@ -780,10 +780,14 @@ impl Service {
                     .iter()
                     .map(|k| {
                         let code = p::code_at(&data, k.index as usize);
-                        let (target, mods) = keycodes::target_of(code);
+                        let (target, mods) = keycodes::selected(code);
+                        let action = match keycodes::shortcut_of(code) {
+                            Some((_, name)) => format!("{name} ({})", keycodes::describe(code, &names)),
+                            None => keycodes::describe(code, &names),
+                        };
                         let changed = if layer == p::LAYER_BASE { code != k.factory } else { code != [0; 4] };
                         json!({
-                            "index": k.index, "label": k.label, "action": keycodes::describe(code, &names),
+                            "index": k.index, "label": k.label, "action": action,
                             "cap": cap_label(code, &names),
                             "target": target, "mods": mods, "width": k.width, "gap": k.gap, "changed": changed,
                         })
@@ -1154,7 +1158,12 @@ mod tests {
         assert_eq!(s.keymap(0)["rows"][3]["keys"][0]["action"], "Esc");
         assert_eq!(s.keymap(0)["rows"][3]["keys"][0]["changed"], true);
         assert_eq!(s.assign(1, 9, "k:6", p::MOD_LGUI)["ok"], true); // Fn+A → ⌘C
-        assert_eq!(s.keymap(1)["rows"][3]["keys"][1]["action"], "⌘C");
+        assert_eq!(s.keymap(1)["rows"][3]["keys"][1]["action"], "Copy (⌘C)");
+        assert_eq!(s.keymap(1)["rows"][3]["keys"][1]["cap"], "⌘C");
+        assert_eq!(s.assign(1, 15, "s:33:10", 0)["ok"], true); // Fn+S → screenshot of an area
+        let k = s.keymap(1);
+        assert_eq!(k["rows"][3]["keys"][2]["action"], "Selected area (⇧⌘4)");
+        assert_eq!(k["rows"][3]["keys"][2]["target"], "s:33:10");
         assert_eq!(s.assign(0, 53, "k:4", 0)["ok"], false); // Fn stays
         assert_eq!(s.add_macro("Sign-off")["ok"], true);
         assert_eq!(s.add_step(0, "text", "Best, Ada", 0, 0, 0)["ok"], true);
