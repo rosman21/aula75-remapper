@@ -10,6 +10,9 @@ import {
   Palette,
   Plug,
   Usb,
+  FlaskConical,
+  GitPullRequest,
+  Terminal,
   Zap,
 } from "lucide-react"
 
@@ -21,6 +24,17 @@ import { Separator } from "@/components/ui/separator"
 
 const APP_URL = import.meta.env.VITE_APP_URL ?? "https://web.remap75.app/"
 const DMG = "/download/Remap75.dmg"
+const REPO = "https://github.com/rosman21/aula75-remapper"
+const EXACT = "https://github.com/expo/exact"
+
+/** GitHub's mark (lucide no longer ships brand icons). */
+function GitHubIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z" />
+    </svg>
+  )
+}
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
@@ -53,6 +67,7 @@ function Nav() {
     ["How it works", "#how"],
     ["Features", "#features"],
     ["Get it", "#get"],
+    ["Open source", "#open-source"],
     ["FAQ", "#faq"],
   ]
   return (
@@ -69,7 +84,12 @@ function Nav() {
             </Button>
           ))}
         </div>
-        <Button size="sm" asChild className="ml-auto md:ml-2">
+        <Button variant="ghost" size="icon" asChild className="ml-auto text-muted-foreground md:ml-0">
+          <a href={REPO} aria-label="Remap75 on GitHub">
+            <GitHubIcon className="size-5" />
+          </a>
+        </Button>
+        <Button size="sm" asChild>
           <a href={DMG}>Download</a>
         </Button>
       </div>
@@ -91,8 +111,8 @@ function Hero() {
           your keys.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-pretty text-muted-foreground sm:text-xl">
-          Remap75 lets you remap any key on your AULA 75 with real Mac names, turn keys into shortcuts and
-          macros, and pick the lighting — without the vendor driver. Click a key, click what it should do, done.
+          Remap75 lets you remap any key on your AULA 75 with real Mac names, turn keys into shortcuts and macros, and
+          pick the lighting — without the vendor driver. Click a key, click what it should do, done.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <Button size="lg" asChild className="h-12 rounded-xl px-6 text-base">
@@ -137,8 +157,8 @@ const steps = [
     title: "Plug it in",
     body: (
       <>
-        Put the 2.4 GHz receiver in a USB port and set the keyboard's switch to <b>2.4G</b>. Or use the USB-C cable
-        with the switch on <b>wired</b>.
+        Put the 2.4 GHz receiver in a USB port and set the keyboard's switch to <b>2.4G</b>. Or use the USB-C cable with
+        the switch on <b>wired</b>.
       </>
     ),
   },
@@ -192,8 +212,8 @@ const features = [
     title: "Remap any key",
     body: (
       <>
-        Swap <Kbd>⌘</Kbd> and <Kbd>⌥</Kbd>, turn Caps Lock into <Kbd>Esc</Kbd>, or move Fn's media keys. Left and
-        right modifiers are separate.
+        Swap <Kbd>⌘</Kbd> and <Kbd>⌥</Kbd>, turn Caps Lock into <Kbd>Esc</Kbd>, or move Fn's media keys. Left and right
+        modifiers are separate.
       </>
     ),
   },
@@ -202,8 +222,7 @@ const features = [
     title: "Shortcuts on one key",
     body: (
       <>
-        Turn on <Kbd>⌘</Kbd> <Kbd>⌥</Kbd> <Kbd>⌃</Kbd> <Kbd>⇧</Kbd>, then click a key: Fn + A can send{" "}
-        <Kbd>⌘C</Kbd>.
+        Turn on <Kbd>⌘</Kbd> <Kbd>⌥</Kbd> <Kbd>⌃</Kbd> <Kbd>⇧</Kbd>, then click a key: Fn + A can send <Kbd>⌘C</Kbd>.
       </>
     ),
   },
@@ -215,13 +234,19 @@ const features = [
   {
     icon: Palette,
     title: "Lighting",
-    body: <>Every built-in effect with brightness, speed and colour, applied live as you change it, plus the sleep timer.</>,
+    body: (
+      <>Every built-in effect with brightness, speed and colour, applied live as you change it, plus the sleep timer.</>
+    ),
   },
 ]
 
 function Features() {
   return (
-    <Section id="features" title="Everything the F75 can do" sub="Built around the way VIA and Vial work, made for the AULA F75.">
+    <Section
+      id="features"
+      title="Everything the F75 can do"
+      sub="Built around the way VIA and Vial work, made for the AULA F75."
+    >
       <div className="grid gap-5 sm:grid-cols-2">
         {features.map((f) => (
           <Card key={f.title} className="gap-3 transition-shadow hover:shadow-lg">
@@ -245,8 +270,8 @@ function Picker() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">One click per key.</h2>
         <p className="mt-3 text-lg text-muted-foreground">
-          Pick a key and the whole keyboard shows up again as the menu of what it can become, with media, navigation
-          and macros below. No long dropdowns.
+          Pick a key and the whole keyboard shows up again as the menu of what it can become, with media, navigation and
+          macros below. No long dropdowns.
         </p>
       </div>
       <img
@@ -317,7 +342,114 @@ function GetIt() {
   )
 }
 
+const openSteps = [
+  {
+    icon: Globe,
+    title: "Try it",
+    body: (
+      <>
+        Open the{" "}
+        <a href={APP_URL} className="font-medium text-primary underline-offset-4 hover:underline">
+          web app
+        </a>{" "}
+        and choose “Try it with a simulated keyboard” — no keyboard or install needed.
+      </>
+    ),
+  },
+  {
+    icon: Terminal,
+    title: "Clone it",
+    body: (
+      <code className="block rounded-md bg-muted px-3 py-2 font-mono text-xs break-all text-foreground select-all">
+        git clone {REPO}.git
+      </code>
+    ),
+  },
+  {
+    icon: FlaskConical,
+    title: "Test it",
+    body: (
+      <>
+        The UI tests run against a simulated F75: <Kbd>bun exact.mjs test web</Kbd>. The protocol has its own:{" "}
+        <Kbd>cargo test</Kbd>.
+      </>
+    ),
+  },
+  {
+    icon: GitPullRequest,
+    title: "Make it better",
+    body: (
+      <>
+        Found a bug or have an idea?{" "}
+        <a href={`${REPO}/issues`} className="font-medium text-primary underline-offset-4 hover:underline">
+          Open an issue
+        </a>{" "}
+        or send a{" "}
+        <a href={`${REPO}/pulls`} className="font-medium text-primary underline-offset-4 hover:underline">
+          pull request
+        </a>
+        .
+      </>
+    ),
+  },
+]
+
+function OpenSource() {
+  return (
+    <Section
+      id="open-source"
+      title="Open source, all of it"
+      sub="The Mac app, the web app, the keyboard protocol and this site are on GitHub. Read how it works, run it yourself, and change what you like."
+    >
+      <Card className="mb-5 overflow-hidden">
+        <CardContent className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <p className="text-lg font-semibold">
+              Built on{" "}
+              <a href={EXACT} className="text-primary underline-offset-4 hover:underline">
+                expo/exact
+              </a>
+            </p>
+            <p className="max-w-2xl text-[15px] text-muted-foreground">
+              One declarative UI contract drawn natively with AppKit on the Mac and running in the browser, with the
+              keyboard logic written once in Rust — the same code talks to the keyboard over USB on a Mac and over
+              WebHID in Chrome.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Button asChild size="lg" className="rounded-xl">
+              <a href={REPO}>
+                <GitHubIcon className="size-5" /> View on GitHub
+              </a>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="rounded-xl">
+              <a href={EXACT}>About Exact</a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {openSteps.map((s) => (
+          <Card key={s.title} className="gap-3">
+            <CardHeader>
+              <div className="mb-2 grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                <s.icon className="size-5" />
+              </div>
+              <CardTitle className="text-lg">{s.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-[15px] leading-relaxed text-muted-foreground">{s.body}</CardContent>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 const faq = [
+  [
+    "Is it really free and open source?",
+    "Yes. All of the code is public on GitHub, and you can build the Mac app, the web app and this site yourself. It is built on Expo's open-source Exact framework.",
+  ],
   [
     "Is Remap75 made by AULA?",
     "No. Remap75 is an independent, open-source project that works with the AULA 75 (F75). It isn't made, endorsed or supported by AULA, and it doesn't contain any of AULA's software. For warranty or hardware help, contact AULA.",
@@ -368,11 +500,18 @@ function Footer() {
           <Logo /> Remap75 is an independent, unofficial project for the AULA 75 (F75). It is not made, endorsed or
           supported by AULA. “AULA” is used only to say which keyboard it works with.
         </span>
-        <Button variant="ghost" size="sm" asChild>
-          <a href="#">
-            Back to top <ArrowUp className="size-4" />
-          </a>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <a href={REPO}>
+              <GitHubIcon className="size-4" /> GitHub
+            </a>
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="#">
+              Back to top <ArrowUp className="size-4" />
+            </a>
+          </Button>
+        </div>
       </div>
     </footer>
   )
@@ -388,6 +527,7 @@ export default function App() {
         <Features />
         <Picker />
         <GetIt />
+        <OpenSource />
         <Faq />
       </main>
       <Footer />
