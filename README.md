@@ -2,6 +2,14 @@
 
 # AULA 75 Control
 
+> [!WARNING]
+> **This project is completely vibe coded.** Every line (the Rust, the contract, the WebHID
+> driver, the site, the release and deploy scripts, and this README) was written by an AI
+> coding agent (Claude) from plain-language requests, without a human writing or line-by-line
+> reviewing the code. It has been tested against a real AULA F75 and a simulated keyboard, but
+> treat it as such: read before you trust it, and remember that **Fn+Esc held for ~5 s** resets
+> the keyboard to factory settings if anything goes wrong.
+
 A configurator for the **AULA F75** keyboard (sold as "AULA 75"), in the spirit of VIA/Vial:
 remap keys, make one key send a combination (⌘C, ⇧⌘4…), use the Fn layer, build macros, and set
 lighting and sleep. It talks to the keyboard through its **2.4 GHz USB receiver** or, as a
