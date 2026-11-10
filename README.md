@@ -29,8 +29,8 @@ One codebase ships three ways:
 | **Web app** | Chrome / Edge / Opera, nothing to install | WebHID, driven from Rust compiled to WebAssembly |
 | **Linux app** | Built from source | hidapi over hidraw (needs the udev rule) |
 
-- Landing page and download: **https://remap75.rosman21.workers.dev**
-- Web app: **https://remap75-app.rosman21.workers.dev**
+- Landing page and download: **https://remap75.app**
+- Web app: **https://web.remap75.app**
 
 The rest of this file is how it's built.
 
@@ -389,17 +389,26 @@ bun run deploy
 
 `scripts/deploy.sh` publishes **two Cloudflare Workers with static assets**:
 
-1. **`remap75-app`**, the web app. `exact web-build --out dist`, then
+1. **`remap75-app`** at **web.remap75.app**, the web app. `exact web-build --out dist`, then
    `wrangler deploy -c deploy/app.wrangler.jsonc`, with `not_found_handling:
    "single-page-application"` so deep links like `/keys` load the app. The web app must sit at
    the **root** of its origin (Exact's web build hardcodes `<base href="/">`), which is why it
-   has its own Worker rather than living under the site at `/app`.
-2. **`remap75`**, the landing page. It builds `site/` with `VITE_APP_URL` set to the web app's
-   address, copies `site/dist` to `target/site`, adds the notarized DMG as
-   `/download/Remap75.dmg` (under the 25 MiB per-file limit), and runs
+   has its own subdomain and Worker rather than living under the site at `/app`.
+2. **`remap75`** at **remap75.app** (and www.remap75.app), the landing page. It builds `site/`
+   with `VITE_APP_URL=https://web.remap75.app/`, copies `site/dist` to `target/site`, adds the
+   notarized DMG as `/download/Remap75.dmg` (under the 25 MiB per-file limit), and runs
    `wrangler deploy -c deploy/site.wrangler.jsonc`.
 
-To ship an update: `bun run release`, then `bun run deploy`.
+The domains are Cloudflare **custom domains** set in the `routes` of each config (the
+`remap75.app` zone is in the same Cloudflare account). Cloudflare creates the DNS records and
+certificates on deploy. `workers_dev` and `preview_urls` are off, so the apps are only served
+on those domains.
+
+To ship an update: `bun run release` (only when the Mac app changed), then `bun run deploy`.
+
+Deploys are run **by hand from a Mac**, not from GitHub. Cloudflare's Git builds can't build this
+project: they don't have the Exact checkout (with its [local patch](#a-local-patch-to-exact-required-for-the-web-build)),
+the Rust toolchain, or the Developer ID and notary credentials the DMG needs.
 
 ---
 

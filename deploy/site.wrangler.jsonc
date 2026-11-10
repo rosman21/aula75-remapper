@@ -1,7 +1,14 @@
-// The landing page and the Mac download (built into ../target/site by scripts/deploy.sh).
+// The landing page and the Mac download (built into ../target/site by scripts/deploy.sh),
+// at https://remap75.app (and www.remap75.app).
 {
   "name": "remap75",
   "compatibility_date": "2026-11-01",
+  "routes": [
+    { "pattern": "remap75.app", "custom_domain": true },
+    { "pattern": "www.remap75.app", "custom_domain": true }
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "../target/site",
     "not_found_handling": "404-page"

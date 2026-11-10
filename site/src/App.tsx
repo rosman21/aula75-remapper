@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
-const APP_URL = import.meta.env.VITE_APP_URL ?? "https://remap75-app.rosman21.workers.dev/"
+const APP_URL = import.meta.env.VITE_APP_URL ?? "https://web.remap75.app/"
 const DMG = "/download/Remap75.dmg"
 
 function Kbd({ children }: { children: ReactNode }) {

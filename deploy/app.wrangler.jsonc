@@ -1,8 +1,12 @@
-// The web app (Exact's release build in ../dist) as a Cloudflare Worker with static assets.
-// Every path the app routes (/keys, /keys/0/11 …) falls back to its shell page.
+// The web app (Exact's release build in ../dist) as a Cloudflare Worker with static assets,
+// at https://web.remap75.app. Every path the app routes (/keys, /keys/0/11 …) falls back to
+// its shell page. Exact's web build needs the root of its own host, hence the subdomain.
 {
   "name": "remap75-app",
   "compatibility_date": "2026-11-01",
+  "routes": [{ "pattern": "web.remap75.app", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "../dist",
     "not_found_handling": "single-page-application"
