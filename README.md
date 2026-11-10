@@ -50,7 +50,8 @@ The rest of this file is how it's built.
 10. [Deploying the web app and site (Cloudflare)](#deploying-the-web-app-and-site-cloudflare)
 11. [The landing site](#the-landing-site)
 12. [Known limits and gotchas](#known-limits-and-gotchas)
-13. [Disclaimer](#disclaimer)
+13. [Contributing](#contributing)
+14. [Disclaimer](#disclaimer)
 
 ---
 
@@ -426,6 +427,27 @@ cd site && bun install && bun run dev
   keyboard…". Test it in a real browser tab.
 - Updating Exact means re-applying the
   [web patch](#a-local-patch-to-exact-required-for-the-web-build).
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. This started as a vibe-coded project, so a second pair
+of eyes on any part of it helps make it better.
+
+- **Found a bug or something confusing?**
+  [Open an issue](https://github.com/rosman21/aula75-remapper/issues/new). Say whether you used
+  the Mac app, the web app or Linux, and whether you were on the receiver or the cable. Paste
+  what the Keyboard tab said too.
+- **Have a fix or an idea?**
+  [Open a pull request](https://github.com/rosman21/aula75-remapper/pulls). Keep it focused on
+  one change. Run `cargo test -p aula75-data` and `bun exact.mjs test web` first. If it touches
+  the protocol, add a test against the simulated keyboard (`data/src/sim.rs`).
+- **Have a different AULA keyboard or firmware?** Reports of what works and what doesn't on other
+  models or firmware versions are especially useful. A read-only `cargo run -p aula75-data
+  --example probe` output is a good start.
+- **Want something new?** Open an issue describing it, for example a per-key lighting editor,
+  Intel Mac builds, or a Windows build.
 
 ---
 
