@@ -122,12 +122,12 @@ pub fn open(api: &HidApi) -> Result<Option<HidWire>, String> {
 fn denied(e: &str) -> String {
     if cfg!(target_os = "linux") {
         format!(
-            "Linux didn't let the app open the keyboard ({e}). Install the udev rule (udev/70-aula75.rules in this \
+            "Linux didn't let the app open the keyboard ({e}). Install the udev rule (udev/70-remap75.rules in this \
              project), then unplug the receiver and plug it back in."
         )
     } else if cfg!(target_os = "macos") {
         format!(
-            "macOS didn't let the app open the keyboard ({e}). Allow AULA 75 Control in System Settings → Privacy & \
+            "macOS didn't let the app open the keyboard ({e}). Allow Remap75 in System Settings → Privacy & \
              Security → Input Monitoring, then reconnect."
         )
     } else {

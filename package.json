@@ -4,8 +4,8 @@
   "scripts": {
     "build": "bun exact.mjs web-build --out dist",
     "start": "bun exact.mjs serve dist",
-    "mac": "EXACT_IDENTITY=9EFD946791746019C89A4C171FF03948FB321ADE bun exact.mjs mac && open \"$(ls -d target/clients/*/dev.aula75.control/macos/*.app | head -1)\"",
-    "mac:diag": "EXACT_IDENTITY=9EFD946791746019C89A4C171FF03948FB321ADE bun exact.mjs mac && open -n --env AULA_DIAG=1 \"$(ls -d target/clients/*/dev.aula75.control/macos/*.app | head -1)\"",
+    "mac": "EXACT_IDENTITY=9EFD946791746019C89A4C171FF03948FB321ADE bun exact.mjs mac && open \"$(ls -d target/clients/*/com.remap75.app/macos/*.app | head -1)\"",
+    "mac:diag": "EXACT_IDENTITY=9EFD946791746019C89A4C171FF03948FB321ADE bun exact.mjs mac && open -n --env AULA_DIAG=1 \"$(ls -d target/clients/*/com.remap75.app/macos/*.app | head -1)\"",
     "release": "bash scripts/release.sh",
     "deploy": "bash scripts/deploy.sh"
   },

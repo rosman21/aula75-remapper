@@ -216,7 +216,7 @@ impl Aula {
 
 impl DataSource for Aula {
     fn app_id(&self) -> &str {
-        "dev.aula75.control"
+        "com.remap75.app"
     }
 
     /// Static tables now; the keyboard only at run time.

@@ -1,4 +1,4 @@
-// AULA 75 Control: configure an AULA F75 through its 2.4 GHz receiver or USB-C cable.
+// Remap75 (for the AULA F75 / AULA 75): configure an AULA F75 through its 2.4 GHz receiver or USB-C cable.
 // The view; the Rust data crate in data/ answers every source (data/src/source.rs).
 
 routes nav

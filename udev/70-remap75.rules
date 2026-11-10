@@ -1,5 +1,5 @@
 # Let the signed-in user open the AULA F75's config interfaces (hidraw) without root.
-# Install:  sudo cp udev/70-aula75.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+# Install:  sudo cp udev/70-remap75.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
 # then unplug the receiver (or cable) and plug it back in.
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", ATTRS{idProduct}=="fa09", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="258a", ATTRS{idProduct}=="010c", TAG+="uaccess"

@@ -1,6 +1,6 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# AULA 75 Control
+# Remap75
 
 > [!WARNING]
 > **This project is completely vibe coded.** Every line (the Rust, the contract, the WebHID
@@ -15,7 +15,7 @@
 > endorsed, sponsored or supported by AULA or the keyboard's manufacturer. See
 > [Disclaimer](#disclaimer).
 
-A configurator for the **AULA F75** keyboard (sold as "AULA 75"), in the spirit of VIA/Vial:
+**Remap75** is a configurator for the **AULA 75** keyboard (the AULA F75), in the spirit of VIA/Vial:
 remap keys, make one key send a combination (⌘C, ⇧⌘4…), use the Fn layer, build macros, and set
 lighting and sleep. It talks to the keyboard through its **2.4 GHz USB receiver** or, as a
 fallback, the **USB-C cable**. Everything is written to the keyboard itself, so it keeps working
@@ -29,8 +29,8 @@ One codebase ships three ways:
 | **Web app** | Chrome / Edge / Opera, nothing to install | WebHID, driven from Rust compiled to WebAssembly |
 | **Linux app** | Built from source | hidapi over hidraw (needs the udev rule) |
 
-- Landing page and download: **https://aula75.rosman21.workers.dev**
-- Web app: **https://aula75-app.rosman21.workers.dev**
+- Landing page and download: **https://remap75.rosman21.workers.dev**
+- Web app: **https://remap75-app.rosman21.workers.dev**
 
 The rest of this file is how it's built.
 
@@ -175,7 +175,7 @@ exports:
 | `bun exact.mjs agent web …` | Drive the UI headlessly (used for the site's screenshots) |
 | `bun ~/dev/exact/scripts/exact.mjs release <path>` | Hardened-runtime signing, notarization and a DMG (wrapped by `scripts/release.sh`) |
 
-`app.json` is the manifest: app id `dev.aula75.control`, name "AULA 75 Control", minimum macOS
+`app.json` is the manifest: app id `com.remap75.app`, name "Remap75", minimum macOS
 14.0, a 1180×760 window (900×560 minimum), and hosts `macos`, `linux` and `web`.
 
 ### A local patch to Exact (required for the web build)
@@ -222,10 +222,12 @@ Things worth knowing:
 - **Link preference.** Status is polled every 2.5 s. If both the receiver and the cable are
   present, the cable wins (it's faster). If the receiver is there but the keyboard is asleep or
   out of range, the app says so instead of failing.
-- **Files.** Macros and backups live in `~/Library/Application Support/AULA 75 Control/` on
-  macOS, `~/.config/aula75-control/` on Linux, and browser `localStorage` (keys prefixed
-  `aula75:`) on the web. Native writes go through a temporary file and a rename.
-- **Diagnostics.** Creating `~/Library/Application Support/AULA 75 Control/diag/enabled` (or
+- **Files.** Macros and backups live in `~/Library/Application Support/Remap75/` on
+  macOS, `~/.config/remap75/` on Linux, and browser `localStorage` (keys prefixed
+  `aula75:`) on the web. Native writes go through a temporary file and a rename. A folder from
+  before the rename (`AULA 75 Control` / `aula75-control`) is moved to the new place on first
+  launch, so macros and saved factory layers carry over.
+- **Diagnostics.** Creating `~/Library/Application Support/Remap75/diag/enabled` (or
   `bun run mac:diag`) turns on extra diagnostic commands. They are off in the browser.
 
 ---
@@ -284,7 +286,7 @@ The receiver's config interface also carries your keystrokes, which is why:
 - **macOS** asks for **Input Monitoring**. Choose *Allow access* in the app, turn it on in System
   Settings → Privacy & Security → Input Monitoring, then reopen the app.
 - **Linux** needs the udev rule:
-  `sudo cp udev/70-aula75.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger`,
+  `sudo cp udev/70-remap75.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger`,
   then replug. Chrome on Linux needs it too.
 
 Command tables, the LED block, key codes and the macro buffer are documented in
@@ -326,7 +328,7 @@ resets it to factory settings.
 | `site/` | The landing page: Vite + React + Tailwind v4 + shadcn/ui |
 | `deploy/app.wrangler.jsonc`, `deploy/site.wrangler.jsonc` | Cloudflare Workers configs |
 | `scripts/release.sh`, `scripts/deploy.sh` | Release and deploy |
-| `udev/70-aula75.rules` | Linux permissions for the receiver and cable |
+| `udev/70-remap75.rules` | Linux permissions for the receiver and cable |
 | `docs/PROTOCOL.md` | Protocol notes and sources |
 | `assets/icon.svg` | App icon |
 
@@ -374,7 +376,7 @@ bun run release
 2. Exact doesn't sign or notarize the DMG itself, so the script then signs the DMG, submits it
    to `notarytool`, staples it, and checks both the DMG and the app with `spctl`.
 
-Output: `target/dist/aula-75-keyboard-software/AULA 75 Control.dmg` (about 9 MB), plus a dSYM.
+Output: `target/dist/aula-75-keyboard-software/Remap75.dmg` (about 9 MB), plus a dSYM.
 
 ---
 
@@ -387,14 +389,14 @@ bun run deploy
 
 `scripts/deploy.sh` publishes **two Cloudflare Workers with static assets**:
 
-1. **`aula75-app`**, the web app. `exact web-build --out dist`, then
+1. **`remap75-app`**, the web app. `exact web-build --out dist`, then
    `wrangler deploy -c deploy/app.wrangler.jsonc`, with `not_found_handling:
    "single-page-application"` so deep links like `/keys` load the app. The web app must sit at
    the **root** of its origin (Exact's web build hardcodes `<base href="/">`), which is why it
    has its own Worker rather than living under the site at `/app`.
-2. **`aula75`**, the landing page. It builds `site/` with `VITE_APP_URL` set to the web app's
+2. **`remap75`**, the landing page. It builds `site/` with `VITE_APP_URL` set to the web app's
    address, copies `site/dist` to `target/site`, adds the notarized DMG as
-   `/download/AULA-75-Control.dmg` (under the 25 MiB per-file limit), and runs
+   `/download/Remap75.dmg` (under the 25 MiB per-file limit), and runs
    `wrangler deploy -c deploy/site.wrangler.jsonc`.
 
 To ship an update: `bun run release`, then `bun run deploy`.
@@ -453,7 +455,7 @@ of eyes on any part of it helps make it better.
 
 ## Disclaimer
 
-**AULA 75 Control is not affiliated with AULA.** It is an independent, unofficial project. It
+**Remap75 is not affiliated with AULA.** It is an independent, unofficial project. It
 is not made, endorsed, sponsored, reviewed or supported by AULA, its parent company, or the
 F75's manufacturer. For help with the keyboard itself (warranty, firmware, hardware faults),
 contact AULA. Don't take problems with this app to them.

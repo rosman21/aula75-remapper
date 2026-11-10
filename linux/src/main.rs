@@ -1,4 +1,4 @@
-//! AULA 75 Control on Linux: the host's entry over the keyboard data source and the baked plan.
+//! Remap75 on Linux: the host's entry over the keyboard data source and the baked plan.
 
 /// The baked plan, written by `build.rs`.
 const PLAN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/app.plan"));

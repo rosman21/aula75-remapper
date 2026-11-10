@@ -117,17 +117,26 @@ impl Service {
         }
     }
 
-    /// Where the app keeps its files: `~/Library/Application Support/AULA 75 Control` on macOS,
-    /// `$XDG_CONFIG_HOME/aula75-control` (or `~/.config/…`) on Linux.
+    /// Where the app keeps its files: `~/Library/Application Support/Remap75` on macOS,
+    /// `$XDG_CONFIG_HOME/remap75` (or `~/.config/…`) on Linux. A folder from before the rename
+    /// (`AULA 75 Control`, `aula75-control`) is moved there the first time, so macros and the
+    /// saved factory layers carry over.
     pub fn default_dir() -> Option<PathBuf> {
         let home = std::env::var_os("HOME").map(PathBuf::from)?;
-        if cfg!(target_os = "macos") {
-            return Some(home.join("Library/Application Support/AULA 75 Control"));
+        let (dir, old) = if cfg!(target_os = "macos") {
+            let support = home.join("Library/Application Support");
+            (support.join("Remap75"), support.join("AULA 75 Control"))
+        } else {
+            let config = std::env::var_os("XDG_CONFIG_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".config"));
+            (config.join("remap75"), config.join("aula75-control"))
+        };
+        if !dir.exists() && old.is_dir() {
+            // Best effort: if the move fails the app starts with an empty folder.
+            let _ = std::fs::rename(&old, &dir);
         }
-        let config = std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home.join(".config"));
-        Some(config.join("aula75-control"))
+        Some(dir)
     }
 
     // -------------------------------------------------------------- files
@@ -318,7 +327,7 @@ impl Service {
                         "receiver",
                         "Allow Input Monitoring",
                         "The receiver also carries your keystrokes, so macOS asks before an app may open it. Choose \
-                         Allow access, turn on AULA 75 Control in System Settings → Privacy & Security → Input \
+                         Allow access, turn on Remap75 in System Settings → Privacy & Security → Input \
                          Monitoring, then reopen the app.",
                         "",
                         self.epoch,
@@ -567,7 +576,7 @@ impl Service {
                 .spawn();
             return reply(
                 false,
-                "System Settings is open at Input Monitoring. If AULA 75 Control is already on there, that entry is from an older build: select it, click −, add the app again with +, then quit and reopen the app.",
+                "System Settings is open at Input Monitoring. If Remap75 (or AULA 75 Control, its old name) is already on there, that entry is from an older build: select it, click −, add the app again with +, then quit and reopen the app.",
             );
         }
         self.drop_session();

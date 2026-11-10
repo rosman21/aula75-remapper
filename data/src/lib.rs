@@ -1,4 +1,4 @@
-//! AULA 75 Control's data crate: the keyboard protocol, its layout, macros, the USB
+//! Remap75's data crate: the keyboard protocol, its layout, macros, the USB
 //! transport, and (in `source`) the data source the Contract view asks.
 
 pub mod keycodes;

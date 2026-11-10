@@ -1,13 +1,13 @@
 {
   "$schema": "/Users/reneosman/dev/exact/scripts/app.schema.json",
-  "name": "AULA 75 Control",
-  "short_name": "AULA 75 Control",
-  "id": "dev.aula75.control",
+  "name": "Remap75",
+  "short_name": "Remap75",
+  "id": "com.remap75.app",
   "start_url": "/",
   "display": "standalone",
   "app": {
-    "id": "dev.aula75.control",
-    "name": "AULA 75 Control"
+    "id": "com.remap75.app",
+    "name": "Remap75"
   },
   "host": {
     "macos": {
@@ -29,5 +29,5 @@
       "linux": "0"
     }
   },
-  "description": "Configure the AULA F75 keyboard's keys, key combinations, lighting and macros through its 2.4 GHz receiver or USB-C cable."
+  "description": "Remap75: configure the AULA F75 (AULA 75) keyboard's keys, key combinations, lighting and macros through its 2.4 GHz receiver or USB-C cable."
 }

@@ -1,4 +1,4 @@
-# AULA 75 Control on the web: the dev loop and the tests, over the simulated keyboard
+# Remap75 on the web: the dev loop and the tests, over the simulated keyboard
 # (a browser has no hidapi; WebHID isn't wired here).
 [package]
 name = "aula-75-keyboard-software-web"

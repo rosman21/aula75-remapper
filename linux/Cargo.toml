@@ -1,4 +1,4 @@
-# AULA 75 Control on Linux: one executable with the runner, the kernel, the data crate,
+# Remap75 on Linux: one executable with the runner, the kernel, the data crate,
 # the baked plan and the host's painter.
 [package]
 name = "aula-75-keyboard-software-linux"

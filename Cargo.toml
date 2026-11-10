@@ -1,4 +1,4 @@
-# AULA 75 Control's Rust workspace (authored, so Exact uses it instead of a generated one):
+# Remap75's Rust workspace (authored, so Exact uses it instead of a generated one):
 # the data crate that talks to the keyboard, and one host crate per platform.
 [workspace]
 members = ["data", "apple", "linux", "web"]

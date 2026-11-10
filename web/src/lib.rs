@@ -1,4 +1,4 @@
-//! AULA 75 Control on the web (the simulated keyboard): the host's exports over the data
+//! Remap75 on the web (the simulated keyboard): the host's exports over the data
 //! source and the baked plan.
 
 /// The baked plan, written by `build.rs`.

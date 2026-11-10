@@ -1,4 +1,4 @@
-// AULA 75 Control's page module: the keyboard over WebHID (Chrome, Edge, Opera).
+// Remap75's page module: the keyboard over WebHID (Chrome, Edge, Opera).
 //
 // The Rust data module (data/src/remote.rs) runs each call against a journal of the I/O done
 // so far, and hands this module the one step it still needs as `native.later`:
@@ -50,7 +50,7 @@ const queue = (f) => {
 };
 
 export async function later(request) {
-  if (request?.aula !== 1) throw new Error('AULA 75 Control: not a keyboard step');
+  if (request?.aula !== 1) throw new Error('Remap75: not a keyboard step');
   let result;
   try {
     result = { ok: await queue(() => step(request.op)) };

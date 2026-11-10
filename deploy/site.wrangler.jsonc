@@ -1,6 +1,6 @@
 // The landing page and the Mac download (built into ../target/site by scripts/deploy.sh).
 {
-  "name": "aula75",
+  "name": "remap75",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "../target/site",

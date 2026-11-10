@@ -19,8 +19,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
-const APP_URL = import.meta.env.VITE_APP_URL ?? "https://aula75-app.rosman21.workers.dev/"
-const DMG = "/download/AULA-75-Control.dmg"
+const APP_URL = import.meta.env.VITE_APP_URL ?? "https://remap75-app.rosman21.workers.dev/"
+const DMG = "/download/Remap75.dmg"
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
@@ -60,7 +60,7 @@ function Nav() {
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-6">
         <a href="#" className="flex items-center gap-2.5 font-semibold">
           <Logo />
-          AULA 75 Control
+          Remap75
         </a>
         <div className="ml-auto hidden items-center gap-1 md:flex">
           {links.map(([label, href]) => (
@@ -83,7 +83,7 @@ function Hero() {
       <div className="pointer-events-none absolute inset-x-0 -top-40 -z-10 mx-auto h-[480px] max-w-4xl rounded-full bg-gradient-to-r from-blue-500/20 via-violet-500/20 to-sky-400/20 blur-3xl" />
       <div className="mx-auto max-w-6xl px-6 pt-20 pb-8 text-center sm:pt-28">
         <Badge variant="secondary" className="mb-6 gap-1.5 rounded-full px-3 py-1 whitespace-normal text-primary">
-          <Usb className="size-3.5" /> For the AULA F75 · 2.4 GHz receiver or USB-C
+          <Usb className="size-3.5" /> For the AULA 75 (F75) · 2.4 GHz receiver or USB-C
         </Badge>
         <h1 className="text-5xl font-bold tracking-tighter text-balance sm:text-7xl">
           Your keyboard,
@@ -91,8 +91,8 @@ function Hero() {
           your keys.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-pretty text-muted-foreground sm:text-xl">
-          Remap any key with real Mac names, turn keys into shortcuts and macros, and pick the lighting — without
-          the vendor driver. Click a key, click what it should do, done.
+          Remap75 lets you remap any key on your AULA 75 with real Mac names, turn keys into shortcuts and
+          macros, and pick the lighting — without the vendor driver. Click a key, click what it should do, done.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <Button size="lg" asChild className="h-12 rounded-xl px-6 text-base">
@@ -319,6 +319,10 @@ function GetIt() {
 
 const faq = [
   [
+    "Is Remap75 made by AULA?",
+    "No. Remap75 is an independent, open-source project that works with the AULA 75 (F75). It isn't made, endorsed or supported by AULA, and it doesn't contain any of AULA's software. For warranty or hardware help, contact AULA.",
+  ],
+  [
     "Which keyboards does it support?",
     "The AULA F75 (sold as “AULA 75”), through its 2.4 GHz receiver (3554:fa09) or its USB-C cable (258a:010c). Before it writes anything, it checks that the key layout looks like an F75's.",
   ],
@@ -361,7 +365,8 @@ function Footer() {
       <Separator />
       <div className="flex flex-wrap items-center justify-between gap-4 pt-6 text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
-          <Logo /> AULA 75 Control is an independent project, not made by or affiliated with AULA.
+          <Logo /> Remap75 is an independent, unofficial project for the AULA 75 (F75). It is not made, endorsed or
+          supported by AULA. “AULA” is used only to say which keyboard it works with.
         </span>
         <Button variant="ghost" size="sm" asChild>
           <a href="#">
