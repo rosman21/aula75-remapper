@@ -184,7 +184,7 @@ The Mac and Linux builds don't need it.
 
 ## The data crate: talking to the keyboard
 
-`data/` is plain Rust with no UI. It has 20+ unit tests (`cargo test -p aula75-data`).
+`data/` is plain Rust with no UI. It has 20 unit tests (`cargo test -p aula75-data`).
 
 | File | Responsibility |
 |---|---|
