@@ -141,8 +141,8 @@ function Hero() {
           <img
             src="/img/keys.png"
             alt="The Keys screen: the left Command and Option keys swapped, each showing what it was"
-            width={1180}
-            height={720}
+            width={1260}
+            height={760}
             className="block h-auto w-full"
           />
         </div>

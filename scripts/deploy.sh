@@ -7,6 +7,16 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 echo "== building the web app"
 bun exact.mjs web-build --out dist
+# Link previews: Exact's page has none, so add the tags (deploy/web-meta.html) after its viewport.
+python3 - <<'PY'
+import re
+page = open("dist/index.html").read()
+meta = open("deploy/web-meta.html").read()
+page = re.sub(r'<link rel="icon"[^>]*>', "", page, count=1)  # Exact's grey placeholder icon
+page, n = re.subn(r'(<meta name="viewport"[^>]*>)', lambda m: m.group(1) + "\n" + meta, page, count=1)
+assert n == 1, "no viewport tag in dist/index.html to put the link-preview tags after"
+open("dist/index.html", "w").write(page)
+PY
 
 echo "== publishing the web app"
 npx --yes wrangler@4 deploy -c deploy/app.wrangler.jsonc
