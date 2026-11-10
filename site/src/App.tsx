@@ -138,13 +138,16 @@ function Hero() {
             <span className="size-3 rounded-full bg-[#febc2e]" />
             <span className="size-3 rounded-full bg-[#28c840]" />
           </div>
-          <img
-            src="/img/keys.png"
-            alt="The Keys screen: the left Command and Option keys swapped, each showing what it was"
-            width={1260}
-            height={760}
-            className="block h-auto w-full"
-          />
+          <picture>
+            <source srcSet="/img/keys-dark.png" media="(prefers-color-scheme: dark)" />
+            <img
+              src="/img/keys.png"
+              alt="The Keys screen: the left Command and Option keys swapped, each tinted blue and showing what it was"
+              width={1260}
+              height={760}
+              className="block h-auto w-full"
+            />
+          </picture>
         </div>
       </div>
     </header>
@@ -270,16 +273,33 @@ function Picker() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">One click per key.</h2>
         <p className="mt-3 text-lg text-muted-foreground">
-          Pick a key and the whole keyboard shows up again as the menu of what it can become, with media, navigation and
-          macros below. No long dropdowns.
+          Pick a key and the whole keyboard shows up again as the menu of what it can become. No long dropdowns.
         </p>
+        <ul className="mt-6 space-y-2 text-[15px] text-muted-foreground">
+          <Point>
+            Ready-made <b className="text-foreground">screenshot</b> keys: <Kbd>⇧⌘3</Kbd> <Kbd>⇧⌘4</Kbd>{" "}
+            <Kbd>⇧⌘5</Kbd>, or straight to the clipboard
+          </Point>
+          <Point>
+            Everyday <b className="text-foreground">Mac shortcuts</b>: copy, paste, undo, Spotlight, lock screen, force
+            quit…
+          </Point>
+          <Point>
+            Your own: turn on <Kbd>⌘</Kbd> <Kbd>⇧</Kbd> and click any key, numbers included
+          </Point>
+        </ul>
       </div>
-      <img
-        src="/img/picker.png"
-        alt="Choosing what Caps Lock does from a keyboard of options"
-        loading="lazy"
-        className="w-full rounded-2xl border shadow-xl shadow-black/10"
-      />
+      <picture>
+        <source srcSet="/img/shortcuts-dark.png" media="(prefers-color-scheme: dark)" />
+        <img
+          src="/img/shortcuts.png"
+          alt="Choosing what Caps Lock does: a keyboard of options, then one-click Screenshots and Mac shortcuts"
+          width={1000}
+          height={792}
+          loading="lazy"
+          className="w-full rounded-2xl border shadow-xl shadow-black/10"
+        />
+      </picture>
     </section>
   )
 }
