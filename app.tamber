@@ -1,0 +1,16 @@
+tamber remap75
+
+// Remap75's colours, matched to remap75.app (Tailwind blue on zinc greys).
+theme
+  AccentColor = light-dark(#2563eb, #3b82f6)
+  // The keyboard's case, and a key on it.
+  surface.board = light-dark(#e4e6eb, #18181b)
+  surface.key = light-dark(#ffffff, #2a2a30)
+  edge.key = light-dark(#c9ccd4, #111114)
+  // A key that does something else now.
+  surface.key-changed = light-dark(#e8f0ff, #1d2a4d)
+  edge.key-changed = light-dark(#93b2f5, #3b5bb5)
+  text.key-was = light-dark(#1d4ed8, #a5c0ff)  pair=surface.key-changed
+  // The status badge behind the Keyboard tab's icon.
+  badge.ready = light-dark(#dcfce7, #123222)
+  badge.idle = light-dark(#eef0f4, #26262b)

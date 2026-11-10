@@ -110,6 +110,17 @@ fn pickWidth(units: number): string = `${units * 44 - 5}px`
 fn layerName(layer: number): string = layer == 1 ? "Fn layer" : "Base layer"
 fn modeName(mode: string): string = mode == "hold" ? "Repeats while held" : mode == "toggle" ? "Toggles on and off" : "Plays once"
 
+// A key on the drawn keyboard: a raised cap with a deeper bottom edge, its colours from app.tamber.
+style Key
+  border-radius=8 border-style="solid" border-width=1 border-bottom-width=3
+  box-shadow="0 1px 2px rgb(0 0 0 / 0.10)"
+  transition="background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease"
+
+// The keyboard's case around the keys.
+style Board
+  border-radius=16 background-color="surface.board"
+  box-shadow="0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px rgb(0 0 0 / 0.08)"
+
 component App
   state layer = 0
   resource status = deviceStatus() as shape Status else empty()
@@ -272,9 +283,12 @@ component DeviceScreen
       list id=`device-${route}` appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
         section
           column gap=8 padding="12px 0" align-items="center" testId="status-card"
-            image (status.state == "ready" ? "symbol:checkmark" : status.state == "permission" ? "symbol:lock" : "symbol:info")
-              aria-label="" width=40 height=40
-              color=(status.state == "ready" ? "-exact-system-green" : "-exact-secondary-label")
+            column width=72 height=72 border-radius=36 align-items="center" justify-content="center"
+              background-color=(status.state == "ready" ? "badge.ready" : "badge.idle")
+              transition="background-color 300ms ease"
+              image (status.state == "ready" ? "symbol:checkmark" : status.state == "permission" ? "symbol:lock" : "symbol:info")
+                aria-label="" width=34 height=34
+                color=(status.state == "ready" ? "-exact-system-green" : "-exact-secondary-label")
             text (status.title == "" ? "Looking for the keyboard…" : status.title) font="-exact-title2" text-align="center"
               testId="status-title"
             text status.detail color="-exact-secondary-label" text-align="center" max-width="30rem" testId="status-detail"
@@ -343,8 +357,7 @@ component KeysScreen
             if not keymap.ok
               text (busy ? "Reading the keyboard's keys…" : keymap.message) testId="keys-message"
             else
-              column gap=6 testId="keyboard" padding=12 border-radius=12 background-color="-exact-secondary-background"
-                align-self="flex-start"
+              column gap=6 testId="keyboard" padding=14 class=Board align-self="flex-start"
                 for row in keymap.rows key=row.id
                   row gap=6
                     for k in row.keys key=k.index
@@ -352,12 +365,13 @@ component KeysScreen
                         width=keyWidth(k.width) margin-left=(k.gap > 0 ? keyWidth(k.gap + 0.1) : "0px") height=50
                         box-sizing="border-box" flex-shrink=0 text-decoration="none" color="-exact-label"
                         display="flex" flex-direction="column" justify-content="space-between" padding=5
-                        border-radius=6 background-color="-exact-background"
+                        class=Key background-color=(k.changed ? "surface.key-changed" : "surface.key")
+                        border-color=(k.changed ? "edge.key-changed" : "edge.key")
                         aria-label=(k.changed ? `${k.label}, now ${k.action}` : `${k.label}: ${k.action}`)
                         if layer == 0
                           text (k.changed ? k.cap : k.label) font="-exact-caption2" color="-exact-label"
                             font-weight=(k.changed ? 600 : 400) white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
-                          text (k.changed ? `was ${k.label}` : "") font="-exact-caption2" color="AccentColor"
+                          text (k.changed ? `was ${k.label}` : "") font="-exact-caption2" color="text.key-was"
                             white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
                         else
                           text k.label font="-exact-caption2" color="-exact-secondary-label"
@@ -428,15 +442,15 @@ component KeyPicker
               text "⌃ Control"
             button aria-pressed=shift press=setShift(not shift) buttonStyle=(shift ? "filled" : "bordered") testId="mod-shift"
               text "⇧ Shift"
-          column gap=5 padding=10 border-radius=12 background-color="-exact-secondary-background"
-            align-self="flex-start" testId="pick-board"
+          column gap=5 padding=12 class=Board align-self="flex-start" testId="pick-board"
             for r in board key=r.id
               row gap=5
                 for p in r.keys key=p.slug
                   button press=pick(p.target) disabled=busy testId=`pick-${p.slug}` aria-label=p.label
                     width=pickWidth(p.width) margin-left=(p.gap > 0 ? pickWidth(p.gap + 0.1) : "0px") height=40
-                    box-sizing="border-box" flex-shrink=0 padding=4 border-radius=6
-                    background-color=(p.target == key.target ? "AccentColor" : "-exact-background")
+                    box-sizing="border-box" flex-shrink=0 padding=4 class=Key
+                    background-color=(p.target == key.target ? "AccentColor" : "surface.key")
+                    border-color=(p.target == key.target ? "AccentColor" : "edge.key")
                     text p.label font="-exact-caption1" color=(p.target == key.target ? "white" : "-exact-label")
                       white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
           for g in groups key=g.name
