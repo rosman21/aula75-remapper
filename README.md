@@ -10,6 +10,11 @@
 > treat it as such: read before you trust it, and remember that **Fn+Esc held for ~5 s** resets
 > the keyboard to factory settings if anything goes wrong.
 
+> [!IMPORTANT]
+> **Not affiliated with AULA.** This is an independent, unofficial project. It is not made,
+> endorsed, sponsored or supported by AULA or the keyboard's manufacturer. See
+> [Disclaimer](#disclaimer).
+
 A configurator for the **AULA F75** keyboard (sold as "AULA 75"), in the spirit of VIA/Vial:
 remap keys, make one key send a combination (⌘C, ⇧⌘4…), use the Fn layer, build macros, and set
 lighting and sleep. It talks to the keyboard through its **2.4 GHz USB receiver** or, as a
@@ -45,6 +50,7 @@ The rest of this file is how it's built.
 10. [Deploying the web app and site (Cloudflare)](#deploying-the-web-app-and-site-cloudflare)
 11. [The landing site](#the-landing-site)
 12. [Known limits and gotchas](#known-limits-and-gotchas)
+13. [Disclaimer](#disclaimer)
 
 ---
 
@@ -423,6 +429,21 @@ cd site && bun install && bun run dev
 
 ---
 
-AULA 75 Control is an independent project, not made by or affiliated with AULA. Protocol
-knowledge comes from community reverse engineering, credited in
-[`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+## Disclaimer
+
+**AULA 75 Control is not affiliated with AULA.** It is an independent, unofficial project. It
+is not made, endorsed, sponsored, reviewed or supported by AULA, its parent company, or the
+F75's manufacturer. For help with the keyboard itself (warranty, firmware, hardware faults),
+contact AULA. Don't take problems with this app to them.
+
+- **Names.** "AULA", "AULA 75" and "AULA F75" are used only to say which keyboard this app
+  works with. They belong to their owners, and using them here doesn't mean any connection to
+  or approval from them.
+- **No vendor code.** The app doesn't contain or redistribute AULA's driver or firmware. What it
+  knows about the keyboard's protocol comes from community reverse engineering, credited in
+  [`docs/PROTOCOL.md`](docs/PROTOCOL.md). The code here is its own implementation of those
+  facts.
+- **Use at your own risk.** The software is provided as is, without warranty. It writes
+  settings to your keyboard's memory. If something goes wrong, holding **Fn+Esc** for about 5
+  seconds restores factory settings, but you are responsible for your own hardware. This
+  project is also [vibe coded](#aula-75-control).
