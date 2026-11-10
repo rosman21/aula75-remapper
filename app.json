@@ -1,0 +1,33 @@
+{
+  "$schema": "/Users/reneosman/dev/exact/scripts/app.schema.json",
+  "name": "AULA 75 Control",
+  "short_name": "AULA 75 Control",
+  "id": "dev.aula75.control",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "dev.aula75.control",
+    "name": "AULA 75 Control"
+  },
+  "host": {
+    "macos": {
+      "minimumOS": "14.0",
+      "window": {
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 560
+      }
+    },
+    "linux": {},
+    "web": {}
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "macos": "0",
+      "linux": "0"
+    }
+  },
+  "description": "Configure the AULA F75 keyboard's keys, key combinations, lighting and macros through its 2.4 GHz receiver or USB-C cable."
+}

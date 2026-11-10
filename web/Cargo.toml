@@ -1,0 +1,23 @@
+# AULA 75 Control on the web: the dev loop and the tests, over the simulated keyboard
+# (a browser has no hidapi; WebHID isn't wired here).
+[package]
+name = "aula-75-keyboard-software-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aula75-data = { path = "../data" }
+exact-logic = { path = "/Users/reneosman/dev/exact/logic" }
+exact-web = { path = "/Users/reneosman/dev/exact/host/web" }
+exact-web-capabilities = { path = "/Users/reneosman/dev/exact/host/web-capabilities" }
+
+[build-dependencies]
+aula75-data = { path = "../data" }
+contract = { path = "/Users/reneosman/dev/exact/contract/cli" }
+exact-bake = { path = "/Users/reneosman/dev/exact/bake" }

@@ -1,0 +1,9 @@
+// The landing page and the Mac download (built into ../target/site by scripts/deploy.sh).
+{
+  "name": "aula75",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "../target/site",
+    "not_found_handling": "404-page"
+  }
+}

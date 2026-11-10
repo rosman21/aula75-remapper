@@ -1,0 +1,248 @@
+//! What a key can do: the targets people pick from, and the names of codes read back.
+//!
+//! A target id is a stable string the view passes back:
+//! `k:<usage>` a key, `c:<usage>` a media/consumer usage, `m:<mods>` a modifier alone,
+//! `macro:<n>` macro n (0-based), `fn`, `none`. Modifiers held with a key are passed beside it.
+
+use crate::protocol::{consumer_code, key_code, macro_code, Code, FN_CODE};
+
+/// HID usage of Escape.
+pub const ESC: u8 = 0x29;
+
+/// One pickable target.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Target {
+    /// Stable id the view passes back.
+    pub id: String,
+    /// The name people see.
+    pub label: String,
+    /// The section it is listed under.
+    pub group: &'static str,
+}
+
+const NAMED: &[(&str, u8)] = &[
+    ("Enter", 0x28),
+    ("Esc", 0x29),
+    ("Backspace", 0x2a),
+    ("Tab", 0x2b),
+    ("Space", 0x2c),
+    ("-", 0x2d),
+    ("=", 0x2e),
+    ("[", 0x2f),
+    ("]", 0x30),
+    ("\\", 0x31),
+    (";", 0x33),
+    ("'", 0x34),
+    ("`", 0x35),
+    (",", 0x36),
+    (".", 0x37),
+    ("/", 0x38),
+    ("Caps Lock", 0x39),
+    ("Print Screen", 0x46),
+    ("Scroll Lock", 0x47),
+    ("Pause", 0x48),
+    ("Insert", 0x49),
+    ("Home", 0x4a),
+    ("Page Up", 0x4b),
+    ("Delete", 0x4c),
+    ("End", 0x4d),
+    ("Page Down", 0x4e),
+    ("Right", 0x4f),
+    ("Left", 0x50),
+    ("Down", 0x51),
+    ("Up", 0x52),
+    ("Menu", 0x65),
+];
+
+const MEDIA: &[(&str, u16)] = &[
+    ("Play / Pause", 0xcd),
+    ("Next Track", 0xb5),
+    ("Previous Track", 0xb6),
+    ("Stop", 0xb7),
+    ("Mute", 0xe2),
+    ("Volume Up", 0xe9),
+    ("Volume Down", 0xea),
+    ("Brightness Up", 0x6f),
+    ("Brightness Down", 0x70),
+    ("Calculator", 0x192),
+    ("Browser", 0x196),
+    ("Mail", 0x18a),
+    ("Search", 0x221),
+];
+
+/// Modifier bits with their Mac names.
+pub const MODIFIERS: &[(&str, u8)] = &[
+    ("Left Command", 0x08),
+    ("Left Option", 0x04),
+    ("Left Control", 0x01),
+    ("Left Shift", 0x02),
+    ("Right Command", 0x80),
+    ("Right Option", 0x40),
+    ("Right Control", 0x10),
+    ("Right Shift", 0x20),
+];
+
+/// The label of a key usage, if it has one.
+pub fn usage_label(usage: u8) -> Option<String> {
+    match usage {
+        0x04..=0x1d => Some(((b'A' + usage - 0x04) as char).to_string()),
+        0x1e..=0x26 => Some(((b'1' + usage - 0x1e) as char).to_string()),
+        0x27 => Some("0".into()),
+        0x3a..=0x45 => Some(format!("F{}", usage - 0x39)),
+        0x68..=0x73 => Some(format!("F{}", usage - 0x68 + 13)),
+        _ => NAMED.iter().find(|n| n.1 == usage).map(|n| n.0.to_string()),
+    }
+}
+
+/// Everything a key can be set to (macros listed by the caller, who knows their names).
+pub fn targets(macros: &[String]) -> Vec<Target> {
+    let mut v = vec![
+        Target {
+            id: "none".into(),
+            label: "Disabled".into(),
+            group: "Special",
+        },
+        Target {
+            id: "fn".into(),
+            label: "Fn".into(),
+            group: "Special",
+        },
+    ];
+    let key = |usage: u8, group| Target {
+        id: format!("k:{usage}"),
+        label: usage_label(usage).unwrap_or_default(),
+        group,
+    };
+    v.extend((0x04..=0x1d).map(|u| key(u, "Letters")));
+    v.extend((0x1e..=0x27).map(|u| key(u, "Numbers")));
+    v.extend(
+        (0x3a..=0x45)
+            .chain(0x68..=0x73)
+            .map(|u| key(u, "Function keys")),
+    );
+    v.extend(NAMED.iter().map(|n| key(n.1, "Editing and navigation")));
+    v.extend(MODIFIERS.iter().map(|(name, bit)| Target {
+        id: format!("m:{bit}"),
+        label: (*name).into(),
+        group: "Modifiers",
+    }));
+    v.extend(MEDIA.iter().map(|(name, usage)| Target {
+        id: format!("c:{usage}"),
+        label: (*name).into(),
+        group: "Media and system",
+    }));
+    v.extend(macros.iter().enumerate().map(|(i, name)| Target {
+        id: format!("macro:{i}"),
+        label: name.clone(),
+        group: "Macros",
+    }));
+    v
+}
+
+/// The code for target `id` with modifiers `mods` held (keys only), or `None` for an unknown id.
+pub fn code_for(id: &str, mods: u8) -> Option<Code> {
+    let (kind, rest) = id.split_once(':').unwrap_or((id, ""));
+    match kind {
+        "none" => Some([0; 4]),
+        "fn" => Some(FN_CODE),
+        "k" => rest.parse().ok().map(|u| key_code(u, mods)),
+        "m" => rest.parse::<u8>().ok().map(|b| key_code(0, b | mods)),
+        "c" => rest.parse().ok().map(consumer_code),
+        "macro" => rest.parse().ok().map(|i| macro_code(i, 1, 1)),
+        _ => None,
+    }
+}
+
+/// The target id and held modifiers of a code, for selecting it in the picker.
+pub fn target_of(code: Code) -> (String, u8) {
+    match code {
+        [0, 0, 0, 0] => ("none".into(), 0),
+        c if c == FN_CODE => ("fn".into(), 0),
+        [0, mods, _, 0] => (format!("m:{mods}"), 0),
+        [0, mods, _, usage] => (format!("k:{usage}"), mods),
+        [2, _, hi, lo] => (format!("c:{}", u16::from(hi) << 8 | u16::from(lo)), 0),
+        [3, _, _, index] => (format!("macro:{index}"), 0),
+        _ => ("none".into(), 0),
+    }
+}
+
+fn mod_prefix(mods: u8) -> String {
+    let mut s = String::new();
+    for (bits, sym) in [(0x11u8, "⌃"), (0x44, "⌥"), (0x22, "⇧"), (0x88, "⌘")] {
+        if mods & bits != 0 {
+            s.push_str(sym);
+        }
+    }
+    s
+}
+
+/// A short name for what a code does: `⌘C`, `Volume Up`, `Macro 2`, `Disabled`.
+pub fn describe(code: Code, macros: &[String]) -> String {
+    match code {
+        [0, 0, 0, 0] => "Disabled".into(),
+        c if c == FN_CODE => "Fn".into(),
+        [0, mods, _, 0] => {
+            let names: Vec<&str> = MODIFIERS
+                .iter()
+                .filter(|m| mods & m.1 != 0)
+                .map(|m| m.0)
+                .collect();
+            if names.len() == 1 {
+                names[0].to_string()
+            } else {
+                mod_prefix(mods)
+            }
+        }
+        [0, mods, _, usage] => {
+            format!(
+                "{}{}",
+                mod_prefix(mods),
+                usage_label(usage).unwrap_or_else(|| format!("0x{usage:02x}"))
+            )
+        }
+        [2, _, hi, lo] => {
+            let usage = u16::from(hi) << 8 | u16::from(lo);
+            MEDIA
+                .iter()
+                .find(|m| m.1 == usage)
+                .map_or_else(|| format!("Media 0x{usage:x}"), |m| m.0.to_string())
+        }
+        [3, _, _, index] => macros
+            .get(index as usize)
+            .cloned()
+            .unwrap_or_else(|| format!("Macro {}", index + 1)),
+        c => c
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{MOD_LGUI, MOD_LSHIFT};
+
+    #[test]
+    fn targets_round_trip_through_codes() {
+        for t in targets(&["Hello".into()]) {
+            let code = code_for(&t.id, 0).unwrap();
+            assert_eq!(target_of(code).0, t.id, "{}", t.label);
+        }
+    }
+
+    #[test]
+    fn combos_keep_their_modifiers() {
+        let code = code_for("k:6", MOD_LGUI).unwrap();
+        assert_eq!(code, [0, 0x08, 0, 6]);
+        assert_eq!(target_of(code), ("k:6".into(), MOD_LGUI));
+        assert_eq!(describe(code, &[]), "⌘C");
+        assert_eq!(
+            describe(code_for("k:33", MOD_LGUI | MOD_LSHIFT).unwrap(), &[]),
+            "⇧⌘4"
+        );
+        assert_eq!(describe(code_for("m:2", 0).unwrap(), &[]), "Left Shift");
+        assert_eq!(describe(code_for("c:233", 0).unwrap(), &[]), "Volume Up");
+    }
+}

@@ -1,0 +1,14 @@
+/target/
+/dist/
+/dist.*
+/dist-windows/
+/node_modules/
+/app.contract.d.ts
+/.exact/
+/.env.local
+/site/node_modules/
+/site/dist/
+/.wrangler/
+/site/.wrangler/
+*.tsbuildinfo
+.DS_Store

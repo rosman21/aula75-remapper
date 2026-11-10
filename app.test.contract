@@ -1,0 +1,110 @@
+// These run on the web against the simulated keyboard (data/src/sim.rs).
+
+test "the simulated keyboard connects"
+  clock data
+  expect text "status-title" == "Connected through the 2.4 GHz receiver"
+  expect text "link" == "2.4 GHz receiver"
+
+test "a key becomes a combination on the Fn layer"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "layer-fn"
+  clock data
+  tap "key-9"
+  clock settle
+  tap "mod-cmd"
+  tap "pick-k-6"
+  clock data
+  clock settle
+  expect state keymap.rows.3 .keys.1 .action == "⌘C"
+
+test "Caps Lock becomes Escape and the factory keys come back"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "key-3"
+  clock settle
+  tap "pick-k-41"
+  clock data
+  clock settle
+  expect state keymap.rows.3 .keys.0 .action == "Esc"
+  tap "restore"
+  clock data
+  expect state keymap.rows.3 .keys.0 .action == "Caps Lock"
+
+test "lighting is read and written"
+  clock data
+  tap "tab-lighting"
+  clock data
+  expect state light.mode == 3
+  type "effect" "2"
+  clock data
+  type "brightness" "9"
+  clock data
+  expect state light.mode == 2
+  expect state light.brightness == 9
+
+test "a macro is made, given steps, and written"
+  clock data
+  tap "tab-macros"
+  type "macro-name" "Sign-off"
+  tap "add-macro"
+  clock data
+  tap "macro-0"
+  clock settle
+  type "step-text" "Best, Ada"
+  tap "add-step"
+  clock data
+  expect text "step-0" == "Type “Best, Ada”"
+  type "step-text" "naïve"
+  tap "add-step"
+  clock data
+  expect text "macro-error" == "A macro can't type “ï”: only US-keyboard characters work."
+
+test "the board shows a key's new action as soon as it is saved"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "key-3"
+  clock settle
+  tap "pick-k-41"
+  clock data
+  clock settle
+  expect tree has "keyboard"
+  expect text "key-3" == "Escwas Caps"
+
+test "a macro edit is written to the keyboard by itself"
+  clock data
+  tap "tab-macros"
+  type "macro-name" "Hi"
+  tap "add-macro"
+  clock data
+  tap "macro-0"
+  clock settle
+  type "step-text" "hi"
+  tap "add-step"
+  clock data
+  clock data
+  expect text "macro-sync" == "Saved to the keyboard"
+
+test "the left Command key becomes Option"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "key-11"
+  clock settle
+  tap "pick-m-4"
+  clock data
+  clock settle
+  expect state keymap.rows.5 .keys.1 .action == "Left Option"
+  expect text "key-11" == "⌥ Optwas ⌘ Cmd"
+
+test "Refresh reads the keys again"
+  clock data
+  tap "tab-keys"
+  clock data
+  tap "refresh-keys"
+  clock data
+  expect tree has "keyboard"
+  expect state keymap.ok == true

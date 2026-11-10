@@ -1,0 +1,10 @@
+// The web app (Exact's release build in ../dist) as a Cloudflare Worker with static assets.
+// Every path the app routes (/keys, /keys/0/11 …) falls back to its shell page.
+{
+  "name": "aula75-app",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "../dist",
+    "not_found_handling": "single-page-application"
+  }
+}

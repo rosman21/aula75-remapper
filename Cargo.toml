@@ -1,0 +1,17 @@
+# AULA 75 Control's Rust workspace (authored, so Exact uses it instead of a generated one):
+# the data crate that talks to the keyboard, and one host crate per platform.
+[workspace]
+members = ["data", "apple", "linux", "web"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[patch.crates-io]
+accesskit_windows = { path = "/Users/reneosman/dev/exact/vendor/accesskit-windows" }
+taffy = { path = "/Users/reneosman/dev/exact/vendor/taffy" }
+parley = { path = "/Users/reneosman/dev/exact/vendor/parley" }
+fontique = { path = "/Users/reneosman/dev/exact/vendor/fontique" }
+wgpu-hal = { path = "/Users/reneosman/dev/exact/vendor/wgpu-hal" }

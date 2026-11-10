@@ -1,0 +1,713 @@
+// AULA 75 Control: configure an AULA F75 through its 2.4 GHz receiver or USB-C cable.
+// The view; the Rust data crate in data/ answers every source (data/src/source.rs).
+
+routes nav
+  tab device "/"
+  tab keys "/keys"
+    pick "/keys/:layer/:index"
+  tab lighting "/lighting"
+  tab macros "/macros"
+    macro "/macros/:id"
+
+shape Status
+  state: string
+  link: string
+  title: string
+  detail: string
+  product: string
+  epoch: number
+
+shape Reply
+  ok: bool
+  message: string
+
+shape Lighting
+  ok: bool
+  message: string
+  mode: number
+  brightness: number
+  speed: number
+  colour: number
+  sleep: number
+
+shape Effect
+  id: number
+  name: string
+  speed: bool
+  colour: bool
+
+shape Swatch
+  id: number
+  name: string
+  css: string
+
+shape SleepChoice
+  seconds: number
+  label: string
+
+shape KeyCap
+  index: number
+  label: string
+  action: string
+  cap: string
+  target: string
+  mods: number
+  width: number
+  gap: number
+  changed: bool
+
+shape KeyRow
+  id: number
+  keys: KeyCap[]
+
+shape Keymap
+  ok: bool
+  message: string
+  rows: KeyRow[]
+
+shape Target
+  id: string
+  label: string
+  group: string
+  slug: string
+
+shape PickKey
+  target: string
+  slug: string
+  label: string
+  width: number
+  gap: number
+
+shape PickRow
+  id: number
+  keys: PickKey[]
+
+shape TargetGroup
+  name: string
+  targets: Target[]
+
+shape StepInfo
+  id: number
+  kind: string
+  text: string
+  usage: number
+  mods: number
+  ms: number
+  label: string
+
+shape MacroInfo
+  id: number
+  name: string
+  summary: string
+  mode: string
+  steps: StepInfo[]
+
+fn replyError(r: option<Reply>): string = match r { case some(x) => x.ok ? "" : x.message, case none => "" }
+fn modBits(ctrl: bool, shift: bool, alt: bool, cmd: bool): number = (ctrl ? 1 : 0) + (shift ? 2 : 0) + (alt ? 4 : 0) + (cmd ? 8 : 0)
+fn hasBit(mods: number, bit: number): bool = floor(mods / bit) % 2 == 1
+fn keyWidth(units: number): string = `${units * 56 - 6}px`
+fn pickWidth(units: number): string = `${units * 44 - 5}px`
+fn layerName(layer: number): string = layer == 1 ? "Fn layer" : "Base layer"
+fn modeName(mode: string): string = mode == "hold" ? "Repeats while held" : mode == "toggle" ? "Toggles on and off" : "Plays once"
+
+component App
+  state layer = 0
+  resource status = deviceStatus() as shape Status else empty()
+  resource light = lighting(status.epoch) as shape Lighting else empty()
+  resource effects = effects() as shape Effect[] else empty()
+  resource palette = palette() as shape Swatch[] else empty()
+  resource sleeps = sleepChoices() as shape SleepChoice[] else empty()
+  resource keymap = keymap(layer, status.epoch) as shape Keymap else empty()
+  resource targets = targets() as shape TargetGroup[] else empty()
+  resource board = pickerLayout() as shape PickRow[] else empty()
+  resource macros = macroList() as shape MacroInfo[] else empty()
+  mutation allowed as shape Reply refreshes status
+  mutation demoed as shape Reply refreshes status
+  mutation lit as shape Reply queue refreshes light
+  mutation slept as shape Reply queue refreshes light
+  mutation assigned as shape Reply refreshes keymap then afterAssign
+  mutation restored as shape Reply refreshes keymap
+  mutation macroAdded as shape Reply refreshes macros, targets
+  mutation macroEdited as shape Reply queue refreshes macros, targets, keymap then afterMacroEdit
+  mutation uploaded as shape Reply queue refreshes keymap
+  mutation reloaded as shape Reply refreshes keymap
+  derive ready = status.state == "ready"
+  task poll mount
+    every(2500, checkStatus)
+  task watchLighting when nav.tab == "lighting" and ready and not pending(lit) and not pending(slept)
+    every(4000, checkLighting)
+
+  action checkStatus
+    refresh status
+  action checkLighting
+    refresh light
+  action reloadKeys
+    send reloaded = reloadKeys()
+    refresh status
+  action afterMacroEdit
+    if ready and replyError(macroEdited) == ""
+      send uploaded = uploadMacros()
+  action pickTab(name: string)
+    nav = select(nav, name)
+  action follow(url: string)
+    nav = go(nav, url)
+  action back
+    nav = back(nav)
+  action allow
+    send allowed = requestAccess()
+  action demo
+    send demoed = useDemo()
+  action pickLayer(l: number)
+    layer = l
+  action assign(l: number, index: number, target: string, mods: number)
+    send assigned = assignKey(l, index, target, mods)
+  action afterAssign
+    if replyError(assigned) == ""
+      nav = back(nav)
+  action restore
+    send restored = restoreLayer(layer)
+  action applyLighting(mode: number, brightness: number, speed: number, colour: number)
+    send lit = setLighting(mode, brightness, speed, colour)
+  action applySleep(v: string)
+    send slept = setSleep(match parseNumber(v) { case some(n) => n, case none => 300 })
+  action newMacro(name: string)
+    send macroAdded = addMacro(name)
+  action saveMacro(id: number, name: string, mode: string)
+    send macroEdited = updateMacro(id, name, mode)
+  action addMacroStep(id: number, kind: string, text: string, usage: number, mods: number, ms: number)
+    send macroEdited = addStep(id, kind, text, usage, mods, ms)
+  action removeMacroStep(id: number, step: number)
+    send macroEdited = removeStep(id, step)
+  action removeMacro(id: number)
+    send macroEdited = deleteMacro(id)
+    nav = back(nav)
+  action upload
+    send uploaded = uploadMacros()
+
+  view
+    main navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow
+      width="100%" height="100%" display="flex" flex-direction="column" testId="app"
+      column flex=1 min-height=0 position="relative"
+        for t in nav.tabs key=t.name
+          column role="tabpanel" id=`panel-${t.name}` position="absolute" inset=0
+            for e in t.stack key=e.id
+              if e.name == "device"
+                DeviceScreen(route=e.id, status=status, allow=allow, demo=demo, check=checkStatus, allowError=replyError(allowed))
+              if e.name == "keys"
+                KeysScreen(route=e.id, status=status, keymap=keymap, layer=layer, pickLayer=pickLayer,
+                  restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored))
+              if e.name == "pick"
+                for row in keymap.rows key=row.id
+                  for k in row.keys.filter(x => `${x.index}` == e.params.index) key=k.index
+                    KeyPicker(route=e.id, layer=layer, key=k, board=board, groups=targets, save=assign, cancel=back,
+                      busy=pending(assigned), error=replyError(assigned))
+              if e.name == "lighting"
+                column navigationKey=`${e.id}` navigationScroll=`light-${e.id}` position="absolute" inset=0
+                  display="flex" flex-direction="column"
+                  header padding="8px 16px"
+                    h1 "Lighting"
+                  if not ready
+                    NotReady(status=status)
+                  else
+                    if light.ok
+                      for l in [light] key=`${light.mode}-${light.brightness}-${light.speed}-${light.colour}-${light.sleep}`
+                        LightingForm(scrollId=`light-${e.id}`, light=l, effects=effects, palette=palette,
+                          sleeps=sleeps, apply=applyLighting, applySleep=applySleep, busy=(pending(lit) or pending(slept)),
+                          error=(replyError(lit) != "" ? replyError(lit) : replyError(slept)))
+                    else
+                      column padding=16 gap=8
+                        text (pending(light) ? "Reading the keyboard's lighting…" : light.message) testId="light-message"
+              if e.name == "macros"
+                MacrosScreen(route=e.id, macros=macros, add=newMacro, addError=replyError(macroAdded),
+                  upload=upload, ready=ready, uploading=pending(uploaded), uploadError=replyError(uploaded),
+                  uploadDone=(match uploaded { case some(r) => r.ok, case none => false }))
+              if e.name == "macro"
+                for m in macros.filter(x => `${x.id}` == e.params.id) key=m.id
+                  MacroEditor(route=e.id, item=m, save=saveMacro, addStep=addMacroStep,
+                    removeStep=removeMacroStep, remove=removeMacro, back=back, error=replyError(macroEdited),
+                    busy=pending(macroEdited))
+      row role="tablist"
+        button role="tab" aria-controls="panel-device" aria-selected=(nav.tab == "device") press=pickTab("device")
+          testId="tab-device" flex=1
+          image "symbol:info"
+          text "Keyboard"
+        button role="tab" aria-controls="panel-keys" aria-selected=(nav.tab == "keys") press=pickTab("keys")
+          testId="tab-keys" flex=1
+          image "symbol:layers"
+          text "Keys"
+        button role="tab" aria-controls="panel-lighting" aria-selected=(nav.tab == "lighting") press=pickTab("lighting")
+          testId="tab-lighting" flex=1
+          image "symbol:sparkles"
+          text "Lighting"
+        button role="tab" aria-controls="panel-macros" aria-selected=(nav.tab == "macros") press=pickTab("macros")
+          testId="tab-macros" flex=1
+          image "symbol:play"
+          text "Macros"
+
+component NotReady
+  props
+    status: Status
+  view
+    column padding=24 gap=8 testId="not-ready"
+      text status.title font="-exact-headline"
+      text status.detail color="-exact-secondary-label"
+      text "Open the Keyboard tab to see the connection." color="-exact-secondary-label" font="-exact-footnote"
+
+component DeviceScreen
+  props
+    route: number
+    status: Status
+    allow: action
+    demo: action
+    check: action
+    allowError: string
+  view
+    column navigationKey=`${route}` navigationScroll=`device-${route}` position="absolute" inset=0
+      display="flex" flex-direction="column"
+      header padding="8px 16px"
+        h1 "Keyboard"
+        button press=check aria-label="Refresh" testId="check"
+          image "symbol:refresh"
+          text "Refresh"
+      list id=`device-${route}` appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+        section
+          column gap=8 padding="12px 0" align-items="center" testId="status-card"
+            image (status.state == "ready" ? "symbol:checkmark" : status.state == "permission" ? "symbol:lock" : "symbol:info")
+              aria-label="" width=40 height=40
+              color=(status.state == "ready" ? "-exact-system-green" : "-exact-secondary-label")
+            text (status.title == "" ? "Looking for the keyboard…" : status.title) font="-exact-title2" text-align="center"
+              testId="status-title"
+            text status.detail color="-exact-secondary-label" text-align="center" max-width="30rem" testId="status-detail"
+            if status.state == "permission" or status.state == "connect"
+              button press=allow buttonStyle="filled" testId="allow"
+                text (status.state == "connect" ? "Connect keyboard" : "Open System Settings")
+            if status.state == "connect" or status.state == "unsupported"
+              button press=demo buttonStyle="bordered" testId="demo"
+                text "Try it with a simulated keyboard"
+              if allowError != ""
+                text allowError color="-exact-system-red" font="-exact-footnote" text-align="center" testId="allow-error"
+        if status.state == "ready"
+          section
+            row
+              text "Connection"
+              text (status.link == "wired" ? "USB-C cable" : "2.4 GHz receiver") color="-exact-secondary-label" testId="link"
+            row
+              text "Device"
+              text status.product color="-exact-secondary-label" testId="product"
+            footer
+              text "Change keys, combinations, lighting and macros in the other tabs. Everything is stored on the keyboard itself."
+        section
+          header
+            text "If the receiver doesn't connect"
+          row
+            text "1. Set the switch on the keyboard to 2.4G and press a key to wake it."
+          row
+            text "2. Plug the receiver straight into the Mac rather than a hub, if you can."
+          row
+            text "3. Or use the USB-C cable with the switch on wired: the app switches to it by itself."
+          footer
+            text "Bluetooth can't change settings. Settings you write keep working over Bluetooth."
+
+component KeysScreen
+  props
+    route: number
+    status: Status
+    keymap: Keymap
+    layer: number
+    pickLayer: action
+    restore: action
+    reload: action
+    busy: bool
+    restoreError: string
+  view
+    column navigationKey=`${route}` navigationScroll=`keys-${route}` position="absolute" inset=0
+      display="flex" flex-direction="column"
+      header padding="8px 16px"
+        h1 "Keys"
+        text "Choose a key to change what it does"
+        button press=reload disabled=busy aria-label="Refresh" testId="refresh-keys"
+          image "symbol:refresh"
+          text (busy ? "Reading…" : "Refresh")
+      scroll id=`keys-${route}` flex=1 min-height=0
+        column padding=16 gap=16
+          row role="radiogroup" aria-label="Layer" max-width="24rem"
+            button role="radio" aria-checked=(layer == 0) press=pickLayer(0) flex=1 testId="layer-base"
+              text "Base layer"
+            button role="radio" aria-checked=(layer == 1) press=pickLayer(1) flex=1 testId="layer-fn"
+              text "Fn layer"
+          text (layer == 1 ? "What each key does while you hold Fn. Set a key to a combination such as ⌘C or a media key." : "What each key does when pressed on its own. Fn has to stay on the base layer.")
+            color="-exact-secondary-label" font="-exact-footnote"
+          if status.state != "ready"
+            NotReady(status=status)
+          else
+            if not keymap.ok
+              text (busy ? "Reading the keyboard's keys…" : keymap.message) testId="keys-message"
+            else
+              column gap=6 testId="keyboard" padding=12 border-radius=12 background-color="-exact-secondary-background"
+                align-self="flex-start"
+                for row in keymap.rows key=row.id
+                  row gap=6
+                    for k in row.keys key=k.index
+                      link href=path("pick", `${layer}`, `${k.index}`) testId=`key-${k.index}`
+                        width=keyWidth(k.width) margin-left=(k.gap > 0 ? keyWidth(k.gap + 0.1) : "0px") height=50
+                        box-sizing="border-box" flex-shrink=0 text-decoration="none" color="-exact-label"
+                        display="flex" flex-direction="column" justify-content="space-between" padding=5
+                        border-radius=6 background-color="-exact-background"
+                        aria-label=(k.changed ? `${k.label}, now ${k.action}` : `${k.label}: ${k.action}`)
+                        if layer == 0
+                          text (k.changed ? k.cap : k.label) font="-exact-caption2" color="-exact-label"
+                            font-weight=(k.changed ? 600 : 400) white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
+                          text (k.changed ? `was ${k.label}` : "") font="-exact-caption2" color="AccentColor"
+                            white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
+                        else
+                          text k.label font="-exact-caption2" color="-exact-secondary-label"
+                          text (k.changed ? k.cap : "") font="-exact-caption1" font-weight=600
+                            color="-exact-label" white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
+              row gap=12 align-items="center"
+                text (layer == 1 ? "Keys show what they do while you hold Fn." : "Keys show what they do now; a changed key also shows what it was.")
+                  color="-exact-secondary-label" font="-exact-footnote" flex=1
+                button press=restore disabled=busy buttonStyle="bordered" testId="restore"
+                  text (layer == 1 ? "Restore saved Fn layer" : "Restore factory keys")
+              if restoreError != ""
+                text restoreError color="-exact-system-red" font="-exact-footnote" testId="restore-error"
+
+component KeyPicker
+  props
+    route: number
+    layer: number
+    key: KeyCap
+    board: PickRow[]
+    groups: TargetGroup[]
+    save: action
+    cancel: action
+    busy: bool
+    error: string
+  state ctrl = hasBit(key.mods, 1)
+  state shift = hasBit(key.mods, 2)
+  state alt = hasBit(key.mods, 4)
+  state cmd = hasBit(key.mods, 8)
+  derive mods = modBits(ctrl, shift, alt, cmd)
+  derive combo = `${ctrl ? "⌃" : ""}${alt ? "⌥" : ""}${shift ? "⇧" : ""}${cmd ? "⌘" : ""}`
+  action pick(id: string)
+    save(layer, key.index, id, id.startsWith("k:") ? mods : 0)
+  action setCtrl(on: bool)
+    ctrl = on
+  action setShift(on: bool)
+    shift = on
+  action setAlt(on: bool)
+    alt = on
+  action setCmd(on: bool)
+    cmd = on
+  view
+    column navigationKey=`${route}` navigationScroll=`pick-${route}` position="absolute" inset=0
+      display="flex" flex-direction="column"
+      header padding="8px 16px"
+        h1 `Change ${key.label}`
+        text layerName(layer)
+      scroll id=`pick-${route}` flex=1 min-height=0
+        column padding=16 gap=14
+          row gap=8 align-items="baseline" flex-wrap="wrap"
+            text `${key.label} does:` color="-exact-secondary-label"
+            text key.action font="-exact-title2" font-weight=600 testId="chosen"
+          if busy
+            text "Saving to the keyboard…" font-weight=600 testId="key-saving"
+          else
+            if error != ""
+              text error color="-exact-system-red" font-weight=600 testId="key-error"
+            else
+              text "Click what it should do instead. It saves right away and takes you back to the keyboard."
+                testId="pick-help"
+          row gap=8 align-items="center" flex-wrap="wrap"
+            text (combo == "" ? "For a shortcut such as ⌘C, turn on its modifiers first, then click the key:" : `Clicking a key now makes ${combo} + that key.`)
+              color="-exact-secondary-label" font="-exact-footnote"
+            button aria-pressed=cmd press=setCmd(not cmd) buttonStyle=(cmd ? "filled" : "bordered") testId="mod-cmd"
+              text "⌘ Command"
+            button aria-pressed=alt press=setAlt(not alt) buttonStyle=(alt ? "filled" : "bordered") testId="mod-alt"
+              text "⌥ Option"
+            button aria-pressed=ctrl press=setCtrl(not ctrl) buttonStyle=(ctrl ? "filled" : "bordered") testId="mod-ctrl"
+              text "⌃ Control"
+            button aria-pressed=shift press=setShift(not shift) buttonStyle=(shift ? "filled" : "bordered") testId="mod-shift"
+              text "⇧ Shift"
+          column gap=5 padding=10 border-radius=12 background-color="-exact-secondary-background"
+            align-self="flex-start" testId="pick-board"
+            for r in board key=r.id
+              row gap=5
+                for p in r.keys key=p.slug
+                  button press=pick(p.target) disabled=busy testId=`pick-${p.slug}` aria-label=p.label
+                    width=pickWidth(p.width) margin-left=(p.gap > 0 ? pickWidth(p.gap + 0.1) : "0px") height=40
+                    box-sizing="border-box" flex-shrink=0 padding=4 border-radius=6
+                    background-color=(p.target == key.target ? "AccentColor" : "-exact-background")
+                    text p.label font="-exact-caption1" color=(p.target == key.target ? "white" : "-exact-label")
+                      white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
+          for g in groups key=g.name
+            column gap=6
+              text g.name font="-exact-headline"
+              row gap=6 flex-wrap="wrap"
+                for t in g.targets key=t.id
+                  button press=pick(t.id) disabled=busy testId=`pick-${t.slug}`
+                    buttonStyle=(t.id == key.target ? "filled" : "bordered")
+                    text t.label
+
+component LightingForm
+  props
+    scrollId: string
+    light: Lighting
+    effects: Effect[]
+    palette: Swatch[]
+    sleeps: SleepChoice[]
+    apply: action
+    applySleep: action
+    busy: bool
+    error: string
+  state mode = light.mode
+  state brightness = `${light.brightness}`
+  state speed = `${light.speed}`
+  state colour = light.colour
+  derive effect = first(effects.filter(x => x.id == mode))
+  derive takesSpeed = match effect { case some(x) => x.speed, case none => false }
+  derive takesColour = match effect { case some(x) => x.colour, case none => false }
+  derive b = match parseNumber(brightness) { case some(v) => max(0, min(9, v)), case none => 0 }
+  derive s = match parseNumber(speed) { case some(v) => max(0, min(4, v)), case none => 0 }
+  action pickMode(v: string)
+    let n = match parseNumber(v) { case some(x) => x, case none => mode }
+    mode = n
+    apply(n, b, s, colour)
+  action editBrightness(v: string)
+    brightness = v
+    match parseNumber(v)
+      case some(x)
+        apply(mode, max(0, min(9, x)), s, colour)
+      case none
+        brightness = v
+  action editSpeed(v: string)
+    speed = v
+    match parseNumber(v)
+      case some(x)
+        apply(mode, b, max(0, min(4, x)), colour)
+      case none
+        speed = v
+  action pickColour(v: string)
+    let n = match parseNumber(v) { case some(x) => x, case none => colour }
+    colour = n
+    apply(mode, b, s, n)
+  view
+    list id=scrollId appearance="auto" listStyle="inset-grouped" flex=1 min-height=0 testId="lighting-form"
+      section
+        row
+          text "Effect"
+          select value=`${mode}` change=pickMode aria-label="Effect" testId="effect"
+            for e in effects key=e.id
+              option e.name value=`${e.id}`
+        row
+          text "Brightness"
+          input type="number" value=brightness input=editBrightness min=0 max=9 step=1 aria-label="Brightness"
+            testId="brightness"
+        if takesSpeed
+          row
+            text "Speed"
+            input type="number" value=speed input=editSpeed min=0 max=4 step=1 aria-label="Speed" testId="speed"
+        if takesColour
+          row
+            text "Colour"
+            select value=`${colour}` change=pickColour aria-label="Colour" testId="colour"
+              for c in palette key=c.id
+                option c.name value=`${c.id}`
+        footer
+          text (busy ? "Writing to the keyboard…" : "Changes apply to the keyboard as you make them. Changes made with the keyboard's own Fn shortcuts show up here too.")
+            testId="lighting-note"
+      if error != ""
+        section
+          text error color="-exact-system-red" testId="lighting-error"
+      section
+        header
+          text "Power"
+        row
+          text "Sleep after"
+          select value=`${light.sleep}` change=applySleep aria-label="Sleep after" testId="sleep"
+            for c in sleeps key=c.seconds
+              option c.label value=`${c.seconds}`
+        footer
+          text "The keyboard sleeps only on the receiver or Bluetooth. A key press wakes it."
+
+component MacrosScreen
+  props
+    route: number
+    macros: MacroInfo[]
+    add: action
+    addError: string
+    upload: action
+    ready: bool
+    uploading: bool
+    uploadError: string
+    uploadDone: bool
+  state draft = ""
+  action edit(v: string)
+    draft = v
+  action create
+    if draft.trim() != ""
+      add(draft.trim())
+      draft = ""
+  view
+    column navigationKey=`${route}` navigationScroll=`macros-${route}` position="absolute" inset=0
+      display="flex" flex-direction="column"
+      header padding="8px 16px"
+        h1 "Macros"
+        text (uploading ? "Writing to the keyboard…" : not ready ? "Keyboard not connected" : "Saved to the keyboard")
+          testId="macro-sync"
+      list id=`macros-${route}` appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+        section
+          row gap=8 align-items="center"
+            input value=draft input=edit submit=create placeholder="New macro name" aria-label="New macro name"
+              flex=1 min-width=0 testId="macro-name"
+            button press=create disabled=(draft.trim() == "") buttonStyle="filled" testId="add-macro"
+              text "Add"
+          if addError != ""
+            text addError color="-exact-system-red" font="-exact-footnote" testId="add-macro-error"
+        section
+          for m in macros key=m.id
+            link href=path("macro", `${m.id}`) testId=`macro-${m.id}`
+              column gap=2
+                text m.name
+                text `${modeName(m.mode)} · ${m.summary}` color="-exact-secondary-label" font="-exact-footnote"
+                  line-clamp=1
+          footer
+            text (macros.length == 0 ? "No macros yet. Add one, give it steps, then assign it to a key in the Keys tab." : "Assign a macro to a key in the Keys tab, under Macros. Edits go to the keyboard as you make them.")
+        if uploadError != ""
+          section
+            text uploadError color="-exact-system-red" testId="upload-error"
+
+component MacroEditor
+  props
+    route: number
+    item: MacroInfo
+    save: action
+    addStep: action
+    removeStep: action
+    remove: action
+    back: action
+    error: string
+    busy: bool
+  state name = item.name
+  state mode = item.mode
+  state kind = "text"
+  state typed = ""
+  state comboKey = "6"
+  state ctrl = false
+  state shift = false
+  state alt = false
+  state cmd = true
+  state waitMs = "250"
+  derive usage = match parseNumber(comboKey) { case some(v) => v, case none => 0 }
+  derive ms = match parseNumber(waitMs) { case some(v) => v, case none => 0 }
+  action editName(v: string)
+    name = v
+  action pickMode(m: string)
+    mode = m
+  action pickKind(k: string)
+    kind = k
+  action editTyped(v: string)
+    typed = v
+  action pickKey(v: string)
+    comboKey = v
+  action setCtrl(on: bool)
+    ctrl = on
+  action setShift(on: bool)
+    shift = on
+  action setAlt(on: bool)
+    alt = on
+  action setCmd(on: bool)
+    cmd = on
+  action editWait(v: string)
+    waitMs = v
+  action add
+    addStep(item.id, kind, typed, usage, modBits(ctrl, shift, alt, cmd), ms)
+    typed = ""
+  view
+    column navigationKey=`${route}` navigationScroll=`macro-${route}` position="absolute" inset=0
+      display="flex" flex-direction="column"
+      header padding="8px 16px"
+        h1 item.name
+        button press=save(item.id, name, mode) disabled=(busy or name.trim() == "") buttonStyle="filled" testId="save-macro"
+          text "Save"
+      list id=`macro-${route}` appearance="auto" listStyle="inset-grouped" flex=1 min-height=0
+        section
+          row
+            input value=name input=editName aria-label="Name" placeholder="Name" flex=1 min-width=0 testId="macro-rename"
+          row role="radiogroup" aria-label="How the key plays it"
+            button role="radio" aria-checked=(mode == "once") press=pickMode("once") flex=1 testId="mode-once"
+              text "Once"
+            button role="radio" aria-checked=(mode == "hold") press=pickMode("hold") flex=1 testId="mode-hold"
+              text "While held"
+            button role="radio" aria-checked=(mode == "toggle") press=pickMode("toggle") flex=1 testId="mode-toggle"
+              text "Toggle"
+          footer
+            text modeName(mode)
+        section
+          header
+            text "Steps"
+          for st in item.steps key=st.id
+            row gap=8 align-items="center"
+              text st.label flex=1 min-width=0 testId=`step-${st.id}`
+              button press=removeStep(item.id, st.id) aria-label=`Remove ${st.label}` testId=`remove-step-${st.id}`
+                image "symbol:delete"
+          if item.steps.length == 0
+            text "No steps yet." color="-exact-secondary-label" testId="no-steps"
+        section
+          header
+            text "Add a step"
+          row role="radiogroup" aria-label="Step"
+            button role="radio" aria-checked=(kind == "text") press=pickKind("text") flex=1 testId="kind-text"
+              text "Type text"
+            button role="radio" aria-checked=(kind == "combo") press=pickKind("combo") flex=1 testId="kind-combo"
+              text "Press keys"
+            button role="radio" aria-checked=(kind == "wait") press=pickKind("wait") flex=1 testId="kind-wait"
+              text "Wait"
+          if kind == "text"
+            row
+              input value=typed input=editTyped submit=add placeholder="Text to type" aria-label="Text to type"
+                flex=1 min-width=0 testId="step-text"
+          if kind == "combo"
+            row
+              text "Key"
+              select value=comboKey change=pickKey aria-label="Key" testId="step-key"
+                option "Modifiers only" value="0"
+                for c in ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] key=c
+                  option c value=`${4 + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf(c)}`
+                for d in ["1","2","3","4","5","6","7","8","9","0"] key=d
+                  option d value=`${d == "0" ? 39 : 29 + "0123456789".indexOf(d)}`
+                option "Enter" value="40"
+                option "Esc" value="41"
+                option "Tab" value="43"
+                option "Space" value="44"
+                option "Backspace" value="42"
+                option "Left" value="80"
+                option "Right" value="79"
+                option "Up" value="82"
+                option "Down" value="81"
+            row
+              text "⌃ Control"
+              input type="checkbox" switch checked=ctrl change=setCtrl aria-label="Control" testId="step-ctrl"
+            row
+              text "⌥ Option"
+              input type="checkbox" switch checked=alt change=setAlt aria-label="Option" testId="step-alt"
+            row
+              text "⇧ Shift"
+              input type="checkbox" switch checked=shift change=setShift aria-label="Shift" testId="step-shift"
+            row
+              text "⌘ Command"
+              input type="checkbox" switch checked=cmd change=setCmd aria-label="Command" testId="step-cmd"
+          if kind == "wait"
+            row
+              text "Milliseconds"
+              input type="number" value=waitMs input=editWait min=1 max=60000 step=50 aria-label="Milliseconds"
+                testId="step-wait"
+          row justify-content="flex-end"
+            button press=add disabled=busy buttonStyle="bordered" testId="add-step"
+              text "Add step"
+          if error != ""
+            text error color="-exact-system-red" font="-exact-footnote" testId="macro-error"
+        section
+          button press=remove(item.id) testId="delete-macro"
+            text "Delete macro" color="-exact-system-red"
+          footer
+            text "Keys that played this macro are turned off."

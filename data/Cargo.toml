@@ -1,0 +1,21 @@
+# The keyboard: protocol, layout, macros, the USB transport and the data source
+# the Contract view asks. Linked into every host and into the bake.
+[package]
+name = "aula75-data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "AULA 75 (F75) keyboard protocol and the app's data source"
+publish = false
+
+[lib]
+name = "aula75_data"
+crate-type = ["rlib"]
+
+[dependencies]
+exact-runner = { path = "/Users/reneosman/dev/exact/runner" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["linux-static-hidraw"] }

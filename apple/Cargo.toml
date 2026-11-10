@@ -1,0 +1,24 @@
+# AULA 75 Control on macOS: the runner, the kernel, the data crate and the baked plan.
+[package]
+name = "aula-75-keyboard-software-apple"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+crate-type = ["rlib"]
+test = false
+bench = false
+
+[dependencies]
+aula75-data = { path = "../data" }
+exact-logic = { path = "/Users/reneosman/dev/exact/logic" }
+exact-apple = { path = "/Users/reneosman/dev/exact/host/apple" }
+exact-apple-update = { path = "/Users/reneosman/dev/exact/host/apple-update" }
+
+[build-dependencies]
+aula75-data = { path = "../data" }
+contract = { path = "/Users/reneosman/dev/exact/contract/cli" }
+exact-bake = { path = "/Users/reneosman/dev/exact/bake" }
