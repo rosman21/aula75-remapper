@@ -106,9 +106,8 @@ function Hero() {
           <Usb className="size-3.5" /> For the AULA 75 (F75) · 2.4 GHz receiver or USB-C
         </Badge>
         <h1 className="text-5xl font-bold tracking-tighter text-balance sm:text-7xl">
-          Your keyboard,
-          <br />
-          your keys.
+          Remap your AULA&nbsp;75 with{" "}
+          <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">Remap75</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-pretty text-muted-foreground sm:text-xl">
           Remap75 lets you remap any key on your AULA 75 with real Mac names, turn keys into shortcuts and macros, and
