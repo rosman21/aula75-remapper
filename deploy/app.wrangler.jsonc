@@ -7,6 +7,13 @@
   "routes": [{ "pattern": "web.remap75.app", "custom_domain": true }],
   "workers_dev": false,
   "preview_urls": false,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    }
+  },
   "assets": {
     "directory": "../dist",
     "not_found_handling": "single-page-application"
