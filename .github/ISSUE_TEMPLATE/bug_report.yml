@@ -1,0 +1,30 @@
+name: Bug report
+description: Something doesn't work or is confusing
+labels: [bug, needs-triage]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app?
+      options: [Mac app, Web app, Linux app]
+    validations: {required: true}
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options: [2.4 GHz receiver, USB-C cable, Bluetooth]
+    validations: {required: true}
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: status
+    attributes:
+      label: What the Keyboard tab says
+      description: Paste the status text, plus OS and browser versions.

@@ -480,3 +480,9 @@ contact AULA. Don't take problems with this app to them.
   settings to your keyboard's memory. If something goes wrong, holding **Fn+Esc** for about 5
   seconds restores factory settings, but you are responsible for your own hardware. This
   project is also [vibe coded](#aula-75-control).
+
+---
+
+## License
+
+[MIT](LICENSE). See also [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).

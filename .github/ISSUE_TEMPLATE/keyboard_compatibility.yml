@@ -1,0 +1,25 @@
+name: Keyboard compatibility
+description: Report what works (or doesn't) on another AULA model or firmware
+labels: [question, needs-triage]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Keyboard model and firmware version
+    validations: {required: true}
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options: [2.4 GHz receiver, USB-C cable]
+    validations: {required: true}
+  - type: textarea
+    id: probe
+    attributes:
+      label: Output of `cargo run -p aula75-data --example probe`
+      description: Read-only; it doesn't change anything on the keyboard.
+      render: text
+  - type: textarea
+    id: works
+    attributes:
+      label: What works and what doesn't
