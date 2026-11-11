@@ -342,8 +342,10 @@ Requirements:
   `bun ~/dev/exact/scripts/exact.mjs setup` (`setup --check` lists what a native build lacks).
   The web build needs the [local patch](#a-local-patch-to-exact-required-for-the-web-build).
 - **Bun**, **Rust** via rustup (`~/.cargo/bin` on your `PATH`), **Xcode** for the Mac build.
-- The workspace's `[patch]` and `exact-*` dependency paths are absolute paths to the Exact
-  checkout. Adjust them if yours lives elsewhere.
+- The workspace's `[patch]` and Exact dependency paths are relative paths to the Exact checkout
+  (`../../../dev/exact`, matching a clone at `~/Documents/projects/<repo>` and Exact at
+  `~/dev/exact`). If your clone or Exact lives elsewhere, run `EXACT2=<path> bun exact.mjs update`
+  to rewrite them (and fix the three `contract = { path = … }` lines by hand, for now).
 
 ```sh
 bun run mac                     # build, sign with the Developer ID, open the Mac app

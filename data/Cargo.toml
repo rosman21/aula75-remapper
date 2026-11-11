@@ -13,7 +13,7 @@ name = "aula75_data"
 crate-type = ["rlib"]
 
 [dependencies]
-exact-runner = { path = "/Users/reneosman/dev/exact/runner" }
+exact-runner = { path = "../../../../dev/exact/runner" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 

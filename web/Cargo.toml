@@ -13,11 +13,11 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 aula75-data = { path = "../data" }
-exact-logic = { path = "/Users/reneosman/dev/exact/logic" }
-exact-web = { path = "/Users/reneosman/dev/exact/host/web" }
-exact-web-capabilities = { path = "/Users/reneosman/dev/exact/host/web-capabilities" }
+exact-logic = { path = "../../../../dev/exact/logic" }
+exact-web = { path = "../../../../dev/exact/host/web" }
+exact-web-capabilities = { path = "../../../../dev/exact/host/web-capabilities" }
 
 [build-dependencies]
 aula75-data = { path = "../data" }
-contract = { path = "/Users/reneosman/dev/exact/contract/cli" }
-exact-bake = { path = "/Users/reneosman/dev/exact/bake" }
+contract = { path = "../../../../dev/exact/contract/cli" }
+exact-bake = { path = "../../../../dev/exact/bake" }
