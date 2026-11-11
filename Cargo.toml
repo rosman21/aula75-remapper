@@ -10,8 +10,8 @@ version = "0.1.0"
 license = "MIT"
 
 [patch.crates-io]
-accesskit_windows = { path = "/Users/reneosman/dev/exact/vendor/accesskit-windows" }
-taffy = { path = "/Users/reneosman/dev/exact/vendor/taffy" }
-parley = { path = "/Users/reneosman/dev/exact/vendor/parley" }
-fontique = { path = "/Users/reneosman/dev/exact/vendor/fontique" }
-wgpu-hal = { path = "/Users/reneosman/dev/exact/vendor/wgpu-hal" }
+accesskit_windows = { path = "../../../dev/exact/vendor/accesskit-windows" }
+taffy = { path = "../../../dev/exact/vendor/taffy" }
+parley = { path = "../../../dev/exact/vendor/parley" }
+fontique = { path = "../../../dev/exact/vendor/fontique" }
+wgpu-hal = { path = "../../../dev/exact/vendor/wgpu-hal" }

@@ -16,11 +16,11 @@ bench = false
 
 [dependencies]
 aula75-data = { path = "../data" }
-exact-logic = { path = "/Users/reneosman/dev/exact/logic" }
-exact-linux = { path = "/Users/reneosman/dev/exact/host/linux" }
-exact-linux-update = { path = "/Users/reneosman/dev/exact/host/linux-update" }
+exact-logic = { path = "../../../../dev/exact/logic" }
+exact-linux = { path = "../../../../dev/exact/host/linux" }
+exact-linux-update = { path = "../../../../dev/exact/host/linux-update" }
 
 [build-dependencies]
 aula75-data = { path = "../data" }
-contract = { path = "/Users/reneosman/dev/exact/contract/cli" }
-exact-bake = { path = "/Users/reneosman/dev/exact/bake" }
+contract = { path = "../../../../dev/exact/contract/cli" }
+exact-bake = { path = "../../../../dev/exact/bake" }
