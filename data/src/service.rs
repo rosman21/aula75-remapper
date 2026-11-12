@@ -840,17 +840,23 @@ impl Service {
                 json!({ "id": r, "keys": keys })
             })
             .collect();
-        // The mode decides whether the keyboard sends these keys as stored (see `set_os_mode`).
+        json!({ "ok": true, "message": "", "rows": rows })
+    }
+
+    /// `KeyboardMode { mode, macKeys }`: the OS mode the keyboard is in now (Fn+W / Fn+E /
+    /// Fn+Q change it on the keyboard, so the Keys screen asks every few seconds), and whether
+    /// Mac keys are set up (Windows mode, and Fn+E can't leave it). `mode` is "" when unknown.
+    pub fn keyboard_mode(&mut self) -> Json {
+        self.load();
         let os = self
             .session()
             .and_then(Session::os_mode)
             .map_or("", p::os_mode_id);
-        // Mac keys are set up when Windows mode is on and Fn+E can't leave it.
         let mac_keys = os == "windows"
             && self
                 .read_layer(p::LAYER_FN)
                 .is_ok_and(|f| p::code_at(&f, layout::E_INDEX as usize) == p::os_mode_key(p::OS_WINDOWS));
-        json!({ "ok": true, "message": "", "rows": rows, "osMode": os, "macKeys": mac_keys })
+        json!({ "mode": os, "macKeys": mac_keys })
     }
 
     /// Put the keyboard in an OS mode, as Fn+W / Fn+E / Fn+Q do. Mac mode sends media keys on

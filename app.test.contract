@@ -141,12 +141,12 @@ test "Mac mode is called out, and Windows mode keeps ⌘ and ⌥ where they were
   clock data
   tap "tab-keys"
   clock data
-  expect state keymap.osMode == "mac"
+  expect state mode.mode == "mac"
   tap "use-windows"
   clock data
   clock settle
-  expect state keymap.osMode == "windows"
-  expect state keymap.macKeys == false
+  expect state mode.mode == "windows"
+  expect state mode.macKeys == false
   expect state keymap.rows.5 .keys.1 .action == "Left Option"
   expect state keymap.rows.5 .keys.2 .action == "Left Command"
 
@@ -157,8 +157,8 @@ test "Mac keys: Windows mode with a Mac's top row, and Fn+E kept from Mac mode"
   tap "mac-keys"
   clock data
   clock settle
-  expect state keymap.osMode == "windows"
-  expect state keymap.macKeys == true
+  expect state mode.mode == "windows"
+  expect state mode.macKeys == true
   expect state keymap.rows.5 .keys.1 .action == "Left Option"
   expect state keymap.rows.0 .keys.12 .action == "Volume Up"
   tap "layer-fn"
@@ -170,12 +170,12 @@ test "a key changed in Mac mode sets up Mac keys first, so the change works"
   expect state status.state == "ready"
   tap "tab-keys"
   clock data
-  expect state keymap.osMode == "mac"
+  expect state mode.mode == "mac"
   tap "key-78"
   clock settle
   tap "pick-s-33-10"
   clock data
   clock settle
-  expect state keymap.osMode == "windows"
-  expect state keymap.macKeys == true
+  expect state mode.mode == "windows"
+  expect state mode.macKeys == true
   expect state keymap.rows.0 .keys.12 .action == "Selected area (⇧⌘4)"
