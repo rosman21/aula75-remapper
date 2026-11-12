@@ -379,7 +379,7 @@ component KeysScreen
                   image "symbol:alert" color="-exact-system-orange"
                   column gap=2 flex=1
                     text (keymap.osMode == "mac" ? "Your keyboard is in Mac mode (Fn+E)" : "Your keyboard is in Android mode (Fn+Q)") font-weight=600
-                    text "This mode is built into the keyboard and ignores what you set here, on F1–F12 and ⌘/⌥ too. Set up Mac keys instead: Windows mode with ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), and Fn+E no longer leaving it. Your changes then work on the cable, the receiver and Bluetooth."
+                    text "This mode is built into the keyboard and ignores what you set here, on F1–F12 and ⌘/⌥ too. Set up Mac keys instead: Windows mode with ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), and Fn+E no longer leaving it. Your changes then work on the cable, the receiver and Bluetooth. Changing a key here sets them up for you."
                       color="-exact-secondary-label" font="-exact-footnote"
                     if modeError != ""
                       text modeError color="-exact-system-red" font="-exact-footnote" testId="os-mode-error"

@@ -170,11 +170,13 @@ impl Aula {
     /// Run `call` against the journal so far: its value, or the page module's next step.
     fn replay(&self, call: Call, journal: Vec<(Json, Json)>) -> Answer {
         let mut s = self.service.lock().unwrap_or_else(|e| e.into_inner());
+        let layers = s.layer_cache();
         crate::remote::begin(journal);
         let j = call.run(&mut s);
         match crate::remote::finish() {
             None => Answer::Now(to_value(&j)),
             Some((op, journal)) => {
+                s.rewind(layers);
                 let body = serde_json::json!({ "aula": 1, "op": op, "journal": journal });
                 Answer::Later(Request::native(serde_json::to_vec(&body).unwrap_or_default()))
             }

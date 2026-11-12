@@ -583,6 +583,18 @@ impl Service {
         }
     }
 
+    /// The layers read so far. A browser run that stops for the page puts them back
+    /// ([`Service::rewind`]), so every replay of a call starts from the same state and asks
+    /// for the same I/O in the same order.
+    pub fn layer_cache(&self) -> std::collections::HashMap<u8, Vec<u8>> {
+        self.layers.clone()
+    }
+
+    /// Put the layers read back as they were when the run started.
+    pub fn rewind(&mut self, layers: std::collections::HashMap<u8, Vec<u8>>) {
+        self.layers = layers;
+    }
+
     /// Ask macOS for Input Monitoring, or (in the browser) pick the keyboard in Chrome's list.
     pub fn request_access(&mut self) -> Json {
         if self.remote && !self.simulate {
@@ -962,6 +974,17 @@ impl Service {
             Ok(b) => b,
             Err(e) => return reply(false, e),
         };
+        // A change made in Mac or Android mode would be stored and then ignored (the mode is
+        // built into the firmware), so leave it first: Mac mode for Mac keys, Android for Windows.
+        let leave = match self.session().and_then(Session::os_mode) {
+            Ok(p::OS_MAC) => self.set_up_mac_keys(),
+            Ok(p::OS_ANDROID) => self.switch_os_mode(p::OS_WINDOWS),
+            _ => Ok(()),
+        };
+        if let Err(e) = leave {
+            let e = self.failed(e);
+            return reply(false, e);
+        }
         let result = self.read_layer(layer).and_then(|mut data| {
             p::set_code(&mut data, index as usize, code);
             let uses_macros = code[0] == 3 && !buffer.is_empty();
@@ -1320,9 +1343,11 @@ mod tests {
     ) -> (Json, usize) {
         let mut journal = Vec::new();
         for steps in 0.. {
+            let layers = s.layer_cache();
             remote::begin(journal);
             let j = f(s);
             let Some((op, mut entries)) = remote::finish() else { return (j, steps) };
+            s.rewind(layers);
             let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
             let n = |k: &str| op[k].as_u64().unwrap_or(0);
             let result = match op["op"].as_str().unwrap_or_default() {
