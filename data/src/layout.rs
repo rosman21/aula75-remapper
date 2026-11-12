@@ -142,6 +142,12 @@ pub const LEFT_CMD_INDEX: u8 = 11;
 /// The key left of Space, which ships as ⌥ (Alt).
 pub const LEFT_OPT_INDEX: u8 = 17;
 
+/// E, whose Fn-layer entry is Fn+E (Mac mode, as shipped).
+pub const E_INDEX: u8 = 20;
+
+/// F1-F12's matrix indices.
+pub const F_KEYS: [u8; 12] = [12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
+
 /// The key at matrix index `index`.
 pub fn key(index: u8) -> Option<&'static Key> {
     keys().find(|k| k.index == index)

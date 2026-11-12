@@ -89,6 +89,22 @@ fn reply(ok: bool, message: impl Into<String>) -> Json {
     json!({ "ok": ok, "message": message.into() })
 }
 
+/// F1-F12 as a Mac's top row (`None`: left as the F-key).
+const MAC_TOP_ROW: [Option<p::Code>; 12] = [
+    Some(p::consumer_code(0x70)),                // F1 brightness down
+    Some(p::consumer_code(0x6f)),                // F2 brightness up
+    Some(p::key_code(0x52, p::MOD_LCTRL)),       // F3 Mission Control (⌃↑)
+    Some(p::key_code(0x2c, p::MOD_LGUI)),        // F4 Spotlight (⌘Space)
+    None,                                        // F5
+    None,                                        // F6
+    Some(p::consumer_code(0xb6)),                // F7 previous track
+    Some(p::consumer_code(0xcd)),                // F8 play / pause
+    Some(p::consumer_code(0xb5)),                // F9 next track
+    Some(p::consumer_code(0xe2)),                // F10 mute
+    Some(p::consumer_code(0xea)),                // F11 volume down
+    Some(p::consumer_code(0xe9)),                // F12 volume up
+];
+
 impl Service {
     /// A service over the real keyboard, or the simulator when `simulate`.
     pub fn new(simulate: bool, dir: Option<PathBuf>) -> Service {
@@ -533,6 +549,14 @@ impl Service {
                         .join(" "),
                     Err(e) => format!("error: {e}"),
                 },
+                "copy" => match self.read_layer(n(1)).and_then(|d| self.write_layer(n(2), &d, None)) {
+                    Ok(()) => format!("layer {} copied to {}", n(1), n(2)),
+                    Err(e) => format!("error: {e}"),
+                },
+                "clear" => match self.write_layer(n(1), &vec![0u8; p::KEYMAP_LEN], None) {
+                    Ok(()) => format!("layer {} cleared", n(1)),
+                    Err(e) => format!("error: {e}"),
+                },
                 "osmode" => match self.session().and_then(|s| {
                     if w.len() > 1 { s.set_os_mode(n(1)) } else { s.os_mode() }
                 }) {
@@ -809,7 +833,12 @@ impl Service {
             .session()
             .and_then(Session::os_mode)
             .map_or("", p::os_mode_id);
-        json!({ "ok": true, "message": "", "rows": rows, "osMode": os })
+        // Mac keys are set up when Windows mode is on and Fn+E can't leave it.
+        let mac_keys = os == "windows"
+            && self
+                .read_layer(p::LAYER_FN)
+                .is_ok_and(|f| p::code_at(&f, layout::E_INDEX as usize) == p::os_mode_key(p::OS_WINDOWS));
+        json!({ "ok": true, "message": "", "rows": rows, "osMode": os, "macKeys": mac_keys })
     }
 
     /// Put the keyboard in an OS mode, as Fn+W / Fn+E / Fn+Q do. Mac mode sends media keys on
@@ -844,6 +873,61 @@ impl Service {
                 p::set_code(&mut base, opt, c);
                 self.write_layer(p::LAYER_BASE, &base, None)?;
             }
+        }
+        self.layers.clear();
+        Ok(())
+    }
+
+    /// Mac keys without Mac mode: Mac mode's F-row and ⌘/⌥ swap are built into the firmware
+    /// and ignore every key layer, so remaps can't work there. This puts the keyboard in
+    /// Windows mode and gives it Mac keys through the layers instead: ⌘ and ⌥ in their Mac
+    /// places, brightness, Mission Control, Spotlight and media on F1-F12 (the F-key itself
+    /// under Fn), and Fn+E switching to Windows mode rather than Mac mode. Keys already
+    /// changed are left as they are.
+    pub fn mac_keys(&mut self) -> Json {
+        self.load();
+        match self.set_up_mac_keys() {
+            Ok(()) => reply(true, ""),
+            Err(e) => {
+                let e = self.failed(e);
+                reply(false, e)
+            }
+        }
+    }
+
+    fn set_up_mac_keys(&mut self) -> Result<(), String> {
+        let before = self.session()?.os_mode()?;
+        if before != p::OS_WINDOWS {
+            let after = self.session()?.set_os_mode(p::OS_WINDOWS)?;
+            self.log(&format!("os mode {before} -> {after}"));
+            if after != p::OS_WINDOWS {
+                return Err("The keyboard didn't switch modes. Press a key to wake it and try again.".into());
+            }
+        }
+        let factory = |i: u8| layout::key(i).map_or([0; 4], |k| k.factory);
+        let mut base = self.read_layer(p::LAYER_BASE)?;
+        let mut fn_layer = self.read_layer(p::LAYER_FN)?;
+        let (base_was, fn_was) = (base.clone(), fn_layer.clone());
+        let (cmd, opt) = (layout::LEFT_CMD_INDEX, layout::LEFT_OPT_INDEX);
+        if p::code_at(&base, cmd as usize) == factory(cmd) && p::code_at(&base, opt as usize) == factory(opt) {
+            p::set_code(&mut base, cmd as usize, factory(opt));
+            p::set_code(&mut base, opt as usize, factory(cmd));
+        }
+        for (f, code) in layout::F_KEYS.iter().zip(MAC_TOP_ROW) {
+            let i = *f as usize;
+            if let Some(code) = code {
+                if p::code_at(&base, i) == factory(*f) {
+                    p::set_code(&mut base, i, code);
+                    p::set_code(&mut fn_layer, i, factory(*f));
+                }
+            }
+        }
+        p::set_code(&mut fn_layer, layout::E_INDEX as usize, p::os_mode_key(p::OS_WINDOWS));
+        if base != base_was {
+            self.write_layer(p::LAYER_BASE, &base, None)?;
+        }
+        if fn_layer != fn_was {
+            self.write_layer(p::LAYER_FN, &fn_layer, None)?;
         }
         self.layers.clear();
         Ok(())

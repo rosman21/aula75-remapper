@@ -233,6 +233,10 @@ pub fn describe(code: Code, macros: &[String]) -> String {
     match code {
         [0, 0, 0, 0] => "Disabled".into(),
         c if c == FN_CODE => "Fn".into(),
+        // The keyboard's own functions (Fn layer as shipped).
+        [7, 0, 0, 0x18] => "Windows mode".into(),
+        [7, 0, 0, 0x19] => "Android mode".into(),
+        [7, 0, 0, 0x1a] => "Mac mode".into(),
         [0, mods, _, 0] => {
             let names: Vec<&str> = MODIFIERS
                 .iter()

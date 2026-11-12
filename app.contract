@@ -65,6 +65,7 @@ shape Keymap
   message: string
   rows: KeyRow[]
   osMode: string
+  macKeys: bool
 
 shape Target
   id: string
@@ -147,6 +148,7 @@ component App
   mutation uploaded as shape Reply queue refreshes keymap
   mutation reloaded as shape Reply refreshes keymap
   mutation osSet as shape Reply refreshes keymap
+  mutation macSet as shape Reply refreshes keymap
   derive ready = status.state == "ready"
   task poll mount
     every(2500, checkStatus)
@@ -184,6 +186,8 @@ component App
     send restored = restoreLayer(layer)
   action useWindowsMode
     send osSet = setOsMode(0)
+  action setUpMacKeys
+    send macSet = macKeys()
   action applyLighting(mode: number, brightness: number, speed: number, colour: number)
     send lit = setLighting(mode, brightness, speed, colour)
   action applySleep(v: string)
@@ -214,7 +218,8 @@ component App
               if e.name == "keys"
                 KeysScreen(route=e.id, status=status, keymap=keymap, layer=layer, pickLayer=pickLayer,
                   restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored),
-                  useWindows=useWindowsMode, switching=pending(osSet), modeError=replyError(osSet))
+                  useWindows=useWindowsMode, macKeys=setUpMacKeys, switching=(pending(osSet) or pending(macSet)),
+                  modeError=(replyError(macSet) != "" ? replyError(macSet) : replyError(osSet)))
               if e.name == "pick"
                 for row in keymap.rows key=row.id
                   for k in row.keys.filter(x => `${x.index}` == e.params.index) key=k.index
@@ -342,6 +347,7 @@ component KeysScreen
     busy: bool
     restoreError: string
     useWindows: action
+    macKeys: action
     switching: bool
     modeError: string
   view
@@ -373,12 +379,15 @@ component KeysScreen
                   image "symbol:alert" color="-exact-system-orange"
                   column gap=2 flex=1
                     text (keymap.osMode == "mac" ? "Your keyboard is in Mac mode (Fn+E)" : "Your keyboard is in Android mode (Fn+Q)") font-weight=600
-                    text "In this mode the keyboard puts media keys on F1–F12 and swaps ⌘ and ⌥ over what you set here, so changed keys don't work. Windows mode sends your keys exactly as set, on the cable, the receiver and Bluetooth. ⌘ and ⌥ stay where they are now."
+                    text "This mode is built into the keyboard and ignores what you set here, on F1–F12 and ⌘/⌥ too. Set up Mac keys instead: Windows mode with ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), and Fn+E no longer leaving it. Your changes then work on the cable, the receiver and Bluetooth."
                       color="-exact-secondary-label" font="-exact-footnote"
                     if modeError != ""
                       text modeError color="-exact-system-red" font="-exact-footnote" testId="os-mode-error"
-                  button press=useWindows disabled=(busy or switching) buttonStyle="filled" testId="use-windows"
-                    text (switching ? "Switching…" : "Use Windows mode")
+                  column gap=6
+                    button press=macKeys disabled=(busy or switching) buttonStyle="filled" testId="mac-keys"
+                      text (switching ? "Setting up…" : "Set up Mac keys")
+                    button press=useWindows disabled=(busy or switching) buttonStyle="borderless" testId="use-windows"
+                      text "Just Windows mode"
               column gap=6 testId="keyboard" padding=14 class=Board align-self="flex-start"
                 for row in keymap.rows key=row.id
                   row gap=6
@@ -402,8 +411,14 @@ component KeysScreen
               row gap=12 align-items="center"
                 text (layer == 1 ? "Keys show what they do while you hold Fn." : "Keys show what they do now; a changed key also shows what it was.")
                   color="-exact-secondary-label" font="-exact-footnote" flex=1
+                if keymap.osMode == "windows" and not keymap.macKeys
+                  button press=macKeys disabled=(busy or switching) buttonStyle="bordered" testId="mac-keys-footer"
+                    aria-label="Set up Mac keys: ⌘ and ⌥ in their Mac places, media on F1–F12, and Fn+E kept from switching to Mac mode"
+                    text (switching ? "Setting up…" : "Set up Mac keys")
                 button press=restore disabled=busy buttonStyle="bordered" testId="restore"
                   text (layer == 1 ? "Restore saved Fn layer" : "Restore factory keys")
+              if modeError != "" and keymap.osMode == "windows"
+                text modeError color="-exact-system-red" font="-exact-footnote"
               if restoreError != ""
                 text restoreError color="-exact-system-red" font="-exact-footnote" testId="restore-error"
 

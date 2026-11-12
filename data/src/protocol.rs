@@ -472,6 +472,12 @@ pub const OS_MAC: u8 = 2;
 /// Android mode (Fn+Q).
 pub const OS_ANDROID: u8 = 1;
 
+/// The Fn-layer code of the key that puts the keyboard in an OS mode (Fn+W is
+/// `07 00 00 18`, Fn+Q `…19`, Fn+E `…1a`).
+pub fn os_mode_key(mode: u8) -> Code {
+    [0x07, 0x00, 0x00, 0x18 + mode]
+}
+
 /// The id the view switches on for an OS mode byte ("" when unknown).
 pub fn os_mode_id(mode: u8) -> &'static str {
     match mode {
@@ -497,11 +503,11 @@ pub const MOD_LALT: u8 = 0x04;
 pub const MOD_LGUI: u8 = 0x08;
 
 /// A key (with `mods` held).
-pub fn key_code(usage: u8, mods: u8) -> Code {
+pub const fn key_code(usage: u8, mods: u8) -> Code {
     [0, mods, 0, usage]
 }
 /// A consumer (media) usage.
-pub fn consumer_code(usage: u16) -> Code {
+pub const fn consumer_code(usage: u16) -> Code {
     [2, 0, (usage >> 8) as u8, usage as u8]
 }
 /// Macro `index` (0-based); mode 1 plays `count` times, 2 repeats while held, 4 toggles.
