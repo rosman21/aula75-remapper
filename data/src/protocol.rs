@@ -19,8 +19,9 @@
 pub const RECEIVER_VID: u16 = 0x3554;
 /// The 2.4 GHz receiver's product id.
 pub const RECEIVER_PID: u16 = 0xfa09;
-/// The keyboard over Bluetooth (view only: config traffic disrupts typing).
-pub const BLUETOOTH_PID: u16 = 0xfa08;
+/// The keyboard over Bluetooth, "AULA-F75 3.0 KB" and "AULA-F75 5.0 KB" (never configured:
+/// the 5.0 one has no vendor collection, and config traffic disrupts typing on the 3.0 one).
+pub const BLUETOOTH_PIDS: [u16; 2] = [0xfa08, 0xfa07];
 /// The keyboard on the USB-C cable.
 pub const WIRED_VID: u16 = 0x258a;
 /// The keyboard on the USB-C cable.
@@ -462,6 +463,25 @@ pub fn matrix_payload(colours: &[[u8; 3]]) -> Vec<u8> {
 /// `[3, mode, count, index]` a macro, `[0x0d, 0, 0, 0]` the Fn key, all zeros disabled.
 pub type Code = [u8; 4];
 
+/// Settings-block byte holding the OS mode the keyboard is in (Fn+W / Fn+E / Fn+Q).
+pub const OS_MODE_OFFSET: usize = 27;
+/// Windows mode: the key layers are sent exactly as stored.
+pub const OS_WINDOWS: u8 = 0;
+/// Mac mode: the firmware swaps ⌘/⌥ and puts media keys on the F-row, over the key layers.
+pub const OS_MAC: u8 = 2;
+/// Android mode (Fn+Q).
+pub const OS_ANDROID: u8 = 1;
+
+/// The id the view switches on for an OS mode byte ("" when unknown).
+pub fn os_mode_id(mode: u8) -> &'static str {
+    match mode {
+        OS_WINDOWS => "windows",
+        OS_MAC => "mac",
+        OS_ANDROID => "android",
+        _ => "",
+    }
+}
+
 /// The base layer.
 pub const LAYER_BASE: u8 = 0;
 /// The layer while Fn is held.
@@ -490,6 +510,25 @@ pub fn macro_code(index: u8, mode: u8, count: u8) -> Code {
 }
 /// The Fn key.
 pub const FN_CODE: Code = [0x0d, 0, 0, 0];
+
+/// The last slot of every key layer AULA's driver writes (KB.ini `CRC=1`). The firmware keeps
+/// a layer without it only until it restarts (a switch to Bluetooth, a power cycle), then
+/// loads the factory keys again.
+pub const LAYER_SIGNATURE: Code = [0x00, 0x00, 0x5a, 0xa5];
+
+/// A key layer as it is written: full length, with the signature in its last slot.
+pub fn signed_layer(layer: &[u8]) -> Vec<u8> {
+    let mut v = layer.to_vec();
+    v.resize(KEYMAP_LEN, 0);
+    set_code(&mut v, MATRIX_LEN - 1, LAYER_SIGNATURE);
+    v
+}
+
+/// The same keys in both layers (the signature slot aside).
+pub fn same_keys(a: &[u8], b: &[u8]) -> bool {
+    let n = (MATRIX_LEN - 1) * 4;
+    a.len() >= n && b.len() >= n && a[..n] == b[..n]
+}
 
 /// The code at matrix index `i` of a layer.
 pub fn code_at(layer: &[u8], i: usize) -> Code {
@@ -582,6 +621,19 @@ mod tests {
         assert_eq!(b[0x3d], 0x34);
         edit_led_block(&mut b, CUSTOM_MODE, 9, 0, 0);
         assert_eq!(b[9], 1);
+    }
+
+    #[test]
+    fn a_written_layer_carries_the_signature_and_reads_back_as_the_same_keys() {
+        let mut layer = vec![0u8; KEYMAP_LEN];
+        set_code(&mut layer, 78, key_code(0x21, MOD_LSHIFT | MOD_LGUI));
+        let signed = signed_layer(&layer);
+        assert_eq!(signed.len(), KEYMAP_LEN);
+        assert_eq!(code_at(&signed, MATRIX_LEN - 1), [0x00, 0x00, 0x5a, 0xa5]);
+        // The keyboard reads the signature slot back as zeros: still the same keys.
+        assert!(same_keys(&signed, &layer));
+        set_code(&mut layer, 78, key_code(0x45, 0));
+        assert!(!same_keys(&signed, &layer));
     }
 
     #[test]

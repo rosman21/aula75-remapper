@@ -533,6 +533,12 @@ impl Service {
                         .join(" "),
                     Err(e) => format!("error: {e}"),
                 },
+                "osmode" => match self.session().and_then(|s| {
+                    if w.len() > 1 { s.set_os_mode(n(1)) } else { s.os_mode() }
+                }) {
+                    Ok(m) => format!("os mode {m}"),
+                    Err(e) => format!("error: {e}"),
+                },
                 "assign" => self
                     .assign(n(1), n(2), w.get(3).copied().unwrap_or("none"), n(4))
                     .to_string(),
@@ -703,6 +709,8 @@ impl Service {
     /// written: the view shows what the keyboard holds, never what we hoped it holds.
     fn write_layer(&mut self, layer: u8, data: &[u8], macros: Option<&[u8]>) -> Result<(), String> {
         self.layers.remove(&layer);
+        let signed = p::signed_layer(data);
+        let data = signed.as_slice();
         let mut attempt = 0;
         loop {
             match self.session()?.write_keymap(layer, data, macros) {
@@ -724,12 +732,12 @@ impl Service {
         for attempt in 0..5u64 {
             session.pause(80 * attempt);
             last = session.keymap(layer)?;
-            if last == data {
+            if p::same_keys(&last, data) {
                 break;
             }
         }
-        let kept = last == data;
-        let diff: Vec<String> = (0..p::MATRIX_LEN)
+        let kept = p::same_keys(&last, data);
+        let diff: Vec<String> = (0..p::MATRIX_LEN - 1)
             .filter(|i| p::code_at(data, *i) != p::code_at(&last, *i))
             .map(|i| {
                 format!(
@@ -796,7 +804,49 @@ impl Service {
                 json!({ "id": r, "keys": keys })
             })
             .collect();
-        json!({ "ok": true, "message": "", "rows": rows })
+        // The mode decides whether the keyboard sends these keys as stored (see `set_os_mode`).
+        let os = self
+            .session()
+            .and_then(Session::os_mode)
+            .map_or("", p::os_mode_id);
+        json!({ "ok": true, "message": "", "rows": rows, "osMode": os })
+    }
+
+    /// Put the keyboard in an OS mode, as Fn+W / Fn+E / Fn+Q do. Mac mode sends media keys on
+    /// F1-F12 and swaps ⌘ and ⌥ over the stored layers, so remapped keys only work in Windows
+    /// mode. Leaving Mac mode for Windows mode swaps the left ⌘ and ⌥ keys in the base layer
+    /// (when they are still as shipped), so they stay where Mac mode had them.
+    pub fn set_os_mode(&mut self, mode: u8) -> Json {
+        self.load();
+        match self.switch_os_mode(mode) {
+            Ok(()) => reply(true, ""),
+            Err(e) => {
+                let e = self.failed(e);
+                reply(false, e)
+            }
+        }
+    }
+
+    fn switch_os_mode(&mut self, mode: u8) -> Result<(), String> {
+        let before = self.session()?.os_mode()?;
+        let after = self.session()?.set_os_mode(mode)?;
+        self.log(&format!("os mode {before} -> {after}"));
+        if after != mode {
+            return Err("The keyboard didn't switch modes. Press a key to wake it and try again.".into());
+        }
+        if before == p::OS_MAC && mode == p::OS_WINDOWS {
+            let (cmd, opt) = (layout::LEFT_CMD_INDEX as usize, layout::LEFT_OPT_INDEX as usize);
+            let mut base = self.read_layer(p::LAYER_BASE)?;
+            let factory = |i: usize| layout::key(i as u8).map(|k| k.factory);
+            if Some(p::code_at(&base, cmd)) == factory(cmd) && Some(p::code_at(&base, opt)) == factory(opt) {
+                let (c, o) = (p::code_at(&base, cmd), p::code_at(&base, opt));
+                p::set_code(&mut base, cmd, o);
+                p::set_code(&mut base, opt, c);
+                self.write_layer(p::LAYER_BASE, &base, None)?;
+            }
+        }
+        self.layers.clear();
+        Ok(())
     }
 
     fn macro_buffer(&self) -> Result<Vec<u8>, String> {

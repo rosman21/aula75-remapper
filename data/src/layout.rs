@@ -137,6 +137,11 @@ pub fn keys() -> impl Iterator<Item = &'static Key> {
     ROWS.iter().flat_map(|r| r.iter())
 }
 
+/// The key right of the left Ctrl, which ships as ⌘ (the Windows key).
+pub const LEFT_CMD_INDEX: u8 = 11;
+/// The key left of Space, which ships as ⌥ (Alt).
+pub const LEFT_OPT_INDEX: u8 = 17;
+
 /// The key at matrix index `index`.
 pub fn key(index: u8) -> Option<&'static Key> {
     keys().find(|k| k.index == index)

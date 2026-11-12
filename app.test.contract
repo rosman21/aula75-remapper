@@ -136,3 +136,15 @@ test "Refresh reads the keys again"
   clock data
   expect tree has "keyboard"
   expect state keymap.ok == true
+
+test "Mac mode is called out, and Windows mode keeps ⌘ and ⌥ where they were"
+  clock data
+  tap "tab-keys"
+  clock data
+  expect state keymap.osMode == "mac"
+  tap "use-windows"
+  clock data
+  clock settle
+  expect state keymap.osMode == "windows"
+  expect state keymap.rows.5 .keys.1 .action == "Left Option"
+  expect state keymap.rows.5 .keys.2 .action == "Left Command"

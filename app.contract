@@ -64,6 +64,7 @@ shape Keymap
   ok: bool
   message: string
   rows: KeyRow[]
+  osMode: string
 
 shape Target
   id: string
@@ -117,6 +118,9 @@ style Key
   transition="background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease"
 
 // The keyboard's case around the keys.
+style Notice
+  border-radius=12 background-color="surface.notice" border-style="solid" border-width=1 border-color="edge.notice"
+
 style Board
   border-radius=16 background-color="surface.board"
   box-shadow="0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px rgb(0 0 0 / 0.08)"
@@ -142,6 +146,7 @@ component App
   mutation macroEdited as shape Reply queue refreshes macros, targets, keymap then afterMacroEdit
   mutation uploaded as shape Reply queue refreshes keymap
   mutation reloaded as shape Reply refreshes keymap
+  mutation osSet as shape Reply refreshes keymap
   derive ready = status.state == "ready"
   task poll mount
     every(2500, checkStatus)
@@ -177,6 +182,8 @@ component App
       nav = back(nav)
   action restore
     send restored = restoreLayer(layer)
+  action useWindowsMode
+    send osSet = setOsMode(0)
   action applyLighting(mode: number, brightness: number, speed: number, colour: number)
     send lit = setLighting(mode, brightness, speed, colour)
   action applySleep(v: string)
@@ -206,7 +213,8 @@ component App
                 DeviceScreen(route=e.id, status=status, allow=allow, demo=demo, check=checkStatus, allowError=replyError(allowed))
               if e.name == "keys"
                 KeysScreen(route=e.id, status=status, keymap=keymap, layer=layer, pickLayer=pickLayer,
-                  restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored))
+                  restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored),
+                  useWindows=useWindowsMode, switching=pending(osSet), modeError=replyError(osSet))
               if e.name == "pick"
                 for row in keymap.rows key=row.id
                   for k in row.keys.filter(x => `${x.index}` == e.params.index) key=k.index
@@ -333,6 +341,9 @@ component KeysScreen
     reload: action
     busy: bool
     restoreError: string
+    useWindows: action
+    switching: bool
+    modeError: string
   view
     column navigationKey=`${route}` navigationScroll=`keys-${route}` position="absolute" inset=0
       display="flex" flex-direction="column"
@@ -357,6 +368,17 @@ component KeysScreen
             if not keymap.ok
               text (busy ? "Reading the keyboard's keys…" : keymap.message) testId="keys-message"
             else
+              if keymap.osMode == "mac" or keymap.osMode == "android"
+                row gap=12 align-items="center" padding=12 class=Notice testId="os-mode"
+                  image "symbol:alert" color="-exact-system-orange"
+                  column gap=2 flex=1
+                    text (keymap.osMode == "mac" ? "Your keyboard is in Mac mode (Fn+E)" : "Your keyboard is in Android mode (Fn+Q)") font-weight=600
+                    text "In this mode the keyboard puts media keys on F1–F12 and swaps ⌘ and ⌥ over what you set here, so changed keys don't work. Windows mode sends your keys exactly as set, on the cable, the receiver and Bluetooth. ⌘ and ⌥ stay where they are now."
+                      color="-exact-secondary-label" font="-exact-footnote"
+                    if modeError != ""
+                      text modeError color="-exact-system-red" font="-exact-footnote" testId="os-mode-error"
+                  button press=useWindows disabled=(busy or switching) buttonStyle="filled" testId="use-windows"
+                    text (switching ? "Switching…" : "Use Windows mode")
               column gap=6 testId="keyboard" padding=14 class=Board align-self="flex-start"
                 for row in keymap.rows key=row.id
                   row gap=6

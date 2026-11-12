@@ -282,6 +282,19 @@ impl Session {
             .ok_or_else(|| "The keyboard reports an effect this app doesn't know.".into())
     }
 
+    /// The keyboard's OS mode (Fn+W / Fn+E / Fn+Q), settings byte 27.
+    pub fn os_mode(&mut self) -> Result<u8, String> {
+        Ok(self.led_block()?[p::OS_MODE_OFFSET])
+    }
+
+    /// Set the OS mode, then read it back.
+    pub fn set_os_mode(&mut self, mode: u8) -> Result<u8, String> {
+        let mut b = self.led_block()?;
+        b[p::OS_MODE_OFFSET] = mode;
+        self.write(self.cmds.led, 0, &b, 15)?;
+        self.os_mode()
+    }
+
     /// The selected effect and sleep timer.
     pub fn lighting(&mut self) -> Result<p::Lighting, String> {
         let b = self.led_block()?;

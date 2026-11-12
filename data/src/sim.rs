@@ -31,6 +31,8 @@ impl Default for SimKeyboard {
         p::set_sleep(&mut led, 300);
         led[0x38] = 0xff;
         led[0x39] = 0xff;
+        // As many keyboards on a Mac are: in Mac mode (Fn+E).
+        led[p::OS_MODE_OFFSET] = p::OS_MAC;
         led[126] = 0x5a;
         led[127] = 0xa5;
         let mut fn_layer = vec![0u8; p::KEYMAP_LEN];
