@@ -55,6 +55,9 @@ shape KeyCap
   width: number
   gap: number
   changed: bool
+  builtIn: bool
+  turn: string
+  turnCap: string
 
 shape KeyRow
   id: number
@@ -68,6 +71,8 @@ shape Keymap
 shape KeyboardMode
   mode: string
   macKeys: bool
+  macKeysLatest: bool
+  live: bool
 
 shape Target
   id: string
@@ -135,7 +140,7 @@ component App
   resource effects = effects() as shape Effect[] else empty()
   resource palette = palette() as shape Swatch[] else empty()
   resource sleeps = sleepChoices() as shape SleepChoice[] else empty()
-  resource keymap = keymap(layer, status.epoch) as shape Keymap else empty()
+  resource keymap = keymap(layer, status.epoch, mode.mode) as shape Keymap else empty()
   resource mode = keyboardMode(status.epoch) as shape KeyboardMode else empty()
   resource targets = targets() as shape TargetGroup[] else empty()
   resource board = pickerLayout() as shape PickRow[] else empty()
@@ -163,8 +168,12 @@ component App
   action checkLighting
     refresh light
   // Fn+W / Fn+E / Fn+Q change the mode on the keyboard itself: watch it while Keys is open.
-  task watchMode when nav.tab == "keys" and ready and not pending(osSet) and not pending(macSet) and not pending(assigned)
+  // On the receiver the keyboard says when a setting changes (mode.live), so asking costs
+  // nothing until it does and the banner follows at once; otherwise each ask reads the keyboard.
+  task watchMode when nav.tab == "keys" and ready and not mode.live and not pending(osSet) and not pending(macSet) and not pending(assigned)
     every(2500, checkMode)
+  task watchModeLive when nav.tab == "keys" and ready and mode.live and not pending(osSet) and not pending(macSet) and not pending(assigned)
+    every(250, checkMode)
   action checkMode
     refresh mode
   action reloadKeys
@@ -222,7 +231,8 @@ component App
           column role="tabpanel" id=`panel-${t.name}` position="absolute" inset=0
             for e in t.stack key=e.id
               if e.name == "device"
-                DeviceScreen(route=e.id, status=status, allow=allow, demo=demo, check=checkStatus, allowError=replyError(allowed))
+                DeviceScreen(route=e.id, status=status, allow=allow, demo=demo, check=checkStatus, allowError=replyError(allowed),
+                  mode=mode, macKeys=setUpMacKeys, switching=(pending(osSet) or pending(macSet)), modeError=replyError(macSet))
               if e.name == "keys"
                 KeysScreen(route=e.id, status=status, keymap=keymap, mode=mode, layer=layer, pickLayer=pickLayer,
                   restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored),
@@ -293,6 +303,10 @@ component DeviceScreen
     demo: action
     check: action
     allowError: string
+    mode: KeyboardMode
+    macKeys: action
+    switching: bool
+    modeError: string
   view
     column navigationKey=`${route}` navigationScroll=`device-${route}` position="absolute" inset=0
       display="flex" flex-direction="column"
@@ -331,6 +345,22 @@ component DeviceScreen
               text status.product color="-exact-secondary-label" testId="product"
             footer
               text "Change keys, combinations, lighting and macros in the other tabs. Everything is stored on the keyboard itself."
+          if mode.mode != ""
+            section testId="mac-keys-section"
+              header
+                text "Using a Mac?"
+              row
+                text "Mac keys"
+                text (mode.macKeysLatest ? "Flashed" : mode.macKeys ? "Older set, or changed by you" : mode.mode == "mac" ? "Not flashed (Mac mode)" : "Not flashed")
+                  color="-exact-secondary-label" testId="mac-keys-state"
+              if not mode.macKeysLatest
+                button press=macKeys disabled=switching testId="flash-mac-keys"
+                  text (switching ? "Flashing…" : mode.macKeys ? "Flash the latest Mac keys" : "Flash Mac keys")
+              if modeError != ""
+                row
+                  text modeError color="-exact-system-red" font="-exact-footnote" testId="flash-error"
+              footer
+                text "One click writes this app's latest Mac keys to the keyboard: ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), the knob turning the volume, and Fn+E kept from switching back to the keyboard's own Mac mode, where some of those keys do nothing on a current macOS. It replaces what those keys do now; every other key keeps your changes."
         section
           header
             text "If the receiver doesn't connect"
@@ -388,13 +418,13 @@ component KeysScreen
                   image "symbol:alert" color="-exact-system-orange"
                   column gap=2 flex=1
                     text (mode.mode == "mac" ? "Your keyboard is in Mac mode (Fn+E)" : "Your keyboard is in Android mode (Fn+Q)") font-weight=600
-                    text "This mode is built into the keyboard and ignores what you set here, on F1–F12 and ⌘/⌥ too. Set up Mac keys instead: Windows mode with ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), and Fn+E no longer leaving it. Your changes then work on the cable, the receiver and Bluetooth. Changing a key here sets them up for you."
+                    text "This mode is built into the keyboard and ignores what you set here, on F1–F12 and ⌘/⌥ too. Some of its top row does nothing on a current macOS. Flash Mac keys instead: Windows mode with ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), the knob turning the volume, and Fn+E no longer leaving it. Your changes then work on the cable, the receiver and Bluetooth."
                       color="-exact-secondary-label" font="-exact-footnote"
                     if modeError != ""
                       text modeError color="-exact-system-red" font="-exact-footnote" testId="os-mode-error"
                   column gap=6
                     button press=macKeys disabled=(busy or switching) buttonStyle="filled" testId="mac-keys"
-                      text (switching ? "Setting up…" : "Set up Mac keys")
+                      text (switching ? "Flashing…" : "Flash Mac keys")
                     button press=useWindows disabled=(busy or switching) buttonStyle="borderless" testId="use-windows"
                       text "Just Windows mode"
               column gap=6 testId="keyboard" padding=14 class=Board align-self="flex-start"
@@ -407,23 +437,23 @@ component KeysScreen
                         display="flex" flex-direction="column" justify-content="space-between" padding=5
                         class=Key background-color=(k.changed ? "surface.key-changed" : "surface.key")
                         border-color=(k.changed ? "edge.key-changed" : "edge.key")
-                        aria-label=(k.changed ? `${k.label}, now ${k.action}` : `${k.label}: ${k.action}`)
+                        aria-label=(k.changed ? `${k.label}, now ${k.action}` : k.builtIn ? `${k.label}, in Mac mode ${k.action}` : k.turn != "" ? `${k.label}: pressing it is ${k.action}; ${k.turn}, which can't be changed` : `${k.label}: ${k.action}`)
                         if layer == 0
-                          text (k.changed ? k.cap : k.label) font="-exact-caption2" color="-exact-label"
+                          text (k.changed or k.builtIn ? k.cap : k.label) font="-exact-caption2" color="-exact-label"
                             font-weight=(k.changed ? 600 : 400) white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
-                          text (k.changed ? `was ${k.label}` : "") font="-exact-caption2" color="text.key-was"
+                          text (k.turnCap != "" ? k.turnCap : k.changed ? `was ${k.label}` : k.builtIn ? k.label : "") font="-exact-caption2" color="text.key-was"
                             white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
                         else
                           text k.label font="-exact-caption2" color="-exact-secondary-label"
-                          text (k.changed ? k.cap : "") font="-exact-caption1" font-weight=600
+                          text (k.changed or k.builtIn ? k.cap : "") font="-exact-caption1" font-weight=600
                             color="-exact-label" white-space="nowrap" overflow="hidden" text-overflow="ellipsis"
               row gap=12 align-items="center"
-                text (layer == 1 ? "Keys show what they do while you hold Fn." : "Keys show what they do now; a changed key also shows what it was.")
+                text (mode.mode == "mac" ? (layer == 1 ? "Keys show what they do while you hold Fn. In Mac mode that is F1–F12 on the top row." : "Keys show what they do now. In Mac mode the top row is brightness and media, with the key's own name below; hold Fn for F1–F12. Empty keys do something this app can't set.") : layer == 1 ? "Keys show what they do while you hold Fn." : "Keys show what they do now; a changed key also shows what it was.")
                   color="-exact-secondary-label" font="-exact-footnote" flex=1
-                if mode.mode == "windows" and not mode.macKeys
+                if mode.mode == "windows" and not mode.macKeysLatest
                   button press=macKeys disabled=(busy or switching) buttonStyle="bordered" testId="mac-keys-footer"
-                    aria-label="Set up Mac keys: ⌘ and ⌥ in their Mac places, media on F1–F12, and Fn+E kept from switching to Mac mode"
-                    text (switching ? "Setting up…" : "Set up Mac keys")
+                    aria-label="Flash Mac keys: replaces F1–F12, ⌘ and ⌥ and Fn+E with this app's latest Mac keys"
+                    text (switching ? "Flashing…" : mode.macKeys ? "Flash latest Mac keys" : "Flash Mac keys")
                 button press=restore disabled=busy buttonStyle="bordered" testId="restore"
                   text (layer == 1 ? "Restore saved Fn layer" : "Restore factory keys")
               if modeError != "" and mode.mode == "windows"
@@ -467,7 +497,7 @@ component KeyPicker
       scroll id=`pick-${route}` flex=1 min-height=0
         column padding=16 gap=14
           row gap=8 align-items="baseline" flex-wrap="wrap"
-            text `${key.label} does:` color="-exact-secondary-label"
+            text (key.turn != "" ? `Pressing the knob does (${key.turn}; that is built into the keyboard):` : `${key.label} does:`) color="-exact-secondary-label"
             text key.action font="-exact-title2" font-weight=600 testId="chosen"
           if busy
             text "Saving to the keyboard…" font-weight=600 testId="key-saving"

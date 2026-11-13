@@ -35,6 +35,11 @@ pub struct Service {
     dir: Option<PathBuf>,
     /// Each key layer as last read back from the keyboard on this connection.
     layers: std::collections::HashMap<u8, Vec<u8>>,
+    /// The OS mode and whether Mac keys are set up, as last read, and how many times it has
+    /// answered [`Service::keyboard_mode`] since (see there).
+    mode: Option<(u8, bool, u32)>,
+    /// Whether the keyboard held the app's latest Mac keys when [`Service::mode`] was read.
+    mac_keys_latest: bool,
 }
 
 /// A target id as a test id: `k:6` → `k-6`.
@@ -51,6 +56,8 @@ pub fn picker_layout() -> Json {
             .map(|(r, row)| {
                 let keys: Vec<Json> = row
                     .iter()
+                    // The knob's press is no key: its action is listed with the special ones.
+                    .filter(|k| k.index != layout::KNOB_INDEX)
                     .map(|k| {
                         let target = keycodes::target_of(k.factory).0;
                         // A 1u modifier shows only its symbol, so it fits.
@@ -82,7 +89,56 @@ pub fn cap_label(code: p::Code, names: &[String]) -> String {
             return (*l).to_string();
         }
     }
+    if let Some(short) = short_cap(code) {
+        return short.to_string();
+    }
     keycodes::describe(code, names)
+}
+
+/// A Mac top-row function, short enough for a 1u keycap.
+fn short_cap(code: p::Code) -> Option<&'static str> {
+    const SHORT: [&str; 12] =
+        ["Bri−", "Bri+", "Mission", "Search", "", "", "Prev", "Play", "Next", "Mute", "Vol−", "Vol+"];
+    let i = MAC_TOP_ROW.iter().position(|c| *c == Some(code))?;
+    Some(SHORT[i])
+}
+
+/// What Mac mode (Fn+E) makes the key at `index` do, where that differs from the key layers:
+/// the mode is built into the keyboard and ignores what the layers hold for these keys. A
+/// Mac's top row on F1-F12 with the F-key itself under Fn, and ⌘ and ⌥ changing places.
+/// The keys named in [`MAC_MODE_ONLY`] have no code a layer could hold: theirs is the F-key's.
+fn mac_mode_code(layer: u8, index: u8) -> Option<p::Code> {
+    let factory = |i: u8| layout::key(i).map(|k| k.factory);
+    if let Some(f) = layout::F_KEYS.iter().position(|f| *f == index) {
+        return match layer {
+            p::LAYER_BASE if mac_mode_only(layer, index).is_none() => MAC_TOP_ROW[f].or(factory(index)),
+            p::LAYER_BASE | p::LAYER_FN => factory(index),
+            _ => None,
+        };
+    }
+    match (layer, index) {
+        (p::LAYER_BASE, layout::LEFT_CMD_INDEX) => factory(layout::LEFT_OPT_INDEX),
+        (p::LAYER_BASE, layout::LEFT_OPT_INDEX) => factory(layout::LEFT_CMD_INDEX),
+        _ => None,
+    }
+}
+
+/// Mac-mode keys of the top row whose keycaps are left empty: what the keyboard sends for
+/// them isn't known, and on the owner's Mac (macOS 27) they do nothing. On an Apple keyboard
+/// they are Mission Control, Launchpad and the keyboard light.
+/// (F-key number, what it is called, its keycap).
+const MAC_MODE_ONLY: [(usize, &str, &str); 4] = [
+    (3, "its own key, which can't be set here", ""),
+    (4, "its own key, which can't be set here", ""),
+    (5, "its own key, which can't be set here", ""),
+    (6, "its own key, which can't be set here", ""),
+];
+
+/// The name and keycap name of a base-layer key that only Mac mode can make (see [`MAC_MODE_ONLY`]).
+fn mac_mode_only(layer: u8, index: u8) -> Option<(&'static str, &'static str)> {
+    let f = layout::F_KEYS.iter().position(|f| *f == index)? + 1;
+    let only = MAC_MODE_ONLY.iter().find(|o| o.0 == f)?;
+    (layer == p::LAYER_BASE).then_some((only.1, only.2))
 }
 
 fn reply(ok: bool, message: impl Into<String>) -> Json {
@@ -122,6 +178,8 @@ impl Service {
             loaded: false,
             dir,
             layers: std::collections::HashMap::new(),
+            mode: None,
+            mac_keys_latest: false,
         }
     }
 
@@ -235,6 +293,7 @@ impl Service {
         self.session = None;
         self.ready = false;
         self.layers.clear();
+        self.mode = None;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -805,7 +864,9 @@ impl Service {
         reply(true, "")
     }
 
-    /// `Keymap { ok, message, rows: [{ id, keys: [KeyCap] }] }`.
+    /// `Keymap { ok, message, rows: [{ id, keys: [KeyCap] }] }`: what each key does now. In Mac
+    /// mode that is the mode's own top row and ⌘/⌥ (see [`mac_mode_code`]), marked `builtIn`,
+    /// whatever the layer holds for those keys.
     pub fn keymap(&mut self, layer: u8) -> Json {
         self.load();
         let data = match self.read_layer(layer) {
@@ -816,6 +877,14 @@ impl Service {
             }
         };
         let names = self.names();
+        let os = self.session().and_then(Session::os_mode);
+        let mac = os == Ok(p::OS_MAC);
+        // Turning the knob is built into the keyboard and has no slot in a layer: shown, not set.
+        let (turn, turn_cap) = match (layer, &os) {
+            (p::LAYER_BASE, Ok(p::OS_WINDOWS)) => ("turning it changes the volume", "↻ Vol"),
+            (p::LAYER_BASE, Ok(p::OS_MAC)) => ("turning it does nothing in Mac mode", "↻ off"),
+            _ => ("", ""),
+        };
         let rows: Vec<Json> = layout::ROWS
             .iter()
             .enumerate()
@@ -823,17 +892,26 @@ impl Service {
                 let keys: Vec<Json> = row
                     .iter()
                     .map(|k| {
-                        let code = p::code_at(&data, k.index as usize);
+                        let built_in = mac.then(|| mac_mode_code(layer, k.index)).flatten();
+                        let code = built_in.unwrap_or_else(|| p::code_at(&data, k.index as usize));
                         let (target, mods) = keycodes::selected(code);
                         let action = match keycodes::shortcut_of(code) {
                             Some((_, name)) => format!("{name} ({})", keycodes::describe(code, &names)),
                             None => keycodes::describe(code, &names),
                         };
-                        let changed = if layer == p::LAYER_BASE { code != k.factory } else { code != [0; 4] };
+                        let changed = built_in.is_none()
+                            && if layer == p::LAYER_BASE { code != k.factory } else { code != [0; 4] };
+                        let (action, cap) = match built_in.and(mac_mode_only(layer, k.index)) {
+                            Some((name, short)) => (name.to_string(), short.to_string()),
+                            None => (action, cap_label(code, &names)),
+                        };
                         json!({
                             "index": k.index, "label": k.label, "action": action,
-                            "cap": cap_label(code, &names),
+                            "cap": cap,
                             "target": target, "mods": mods, "width": k.width, "gap": k.gap, "changed": changed,
+                            "builtIn": built_in.is_some(),
+                            "turn": if k.index == layout::KNOB_INDEX { turn } else { "" },
+                            "turnCap": if k.index == layout::KNOB_INDEX { turn_cap } else { "" },
                         })
                     })
                     .collect();
@@ -843,20 +921,47 @@ impl Service {
         json!({ "ok": true, "message": "", "rows": rows })
     }
 
-    /// `KeyboardMode { mode, macKeys }`: the OS mode the keyboard is in now (Fn+W / Fn+E /
-    /// Fn+Q change it on the keyboard, so the Keys screen asks every few seconds), and whether
-    /// Mac keys are set up (Windows mode, and Fn+E can't leave it). `mode` is "" when unknown.
+    /// How many times in a row [`Service::keyboard_mode`] answers from what it last read while
+    /// the keyboard reports no change: at four asks a second, the keyboard is still read every
+    /// 2.5 s, in case a change notice was lost.
+    const MODE_ASKS_PER_READ: u32 = 10;
+
+    /// `KeyboardMode { mode, macKeys, macKeysLatest, live }`: the OS mode the keyboard is in now (Fn+W / Fn+E /
+    /// Fn+Q change it on the keyboard, so the Keys screen keeps asking), and whether Mac keys
+    /// are set up (Windows mode, and Fn+E can't leave it). `macKeysLatest` says they are the
+    /// keys this version of the app flashes ([`Service::mac_keys`]); when it is false with
+    /// `macKeys` true, an older set or the owner's own changes are there. `mode` is "" when unknown.
+    ///
+    /// `live` is true when the keyboard's own change notices can be heard (the receiver, see
+    /// [`p::WIRELESS_CHANGED`]): asking is then free unless something changed, so the view asks
+    /// several times a second and the mode follows the keyboard at once. Otherwise every ask
+    /// reads the keyboard, and the view asks every few seconds.
     pub fn keyboard_mode(&mut self) -> Json {
         self.load();
-        let os = self
-            .session()
-            .and_then(Session::os_mode)
-            .map_or("", p::os_mode_id);
-        let mac_keys = os == "windows"
+        let live = !self.remote && self.session().is_ok_and(|s| s.listens());
+        if live {
+            let changed = self.session().and_then(Session::take_changed).unwrap_or(true);
+            if let Some((os, mac_keys, asks)) = self.mode {
+                if !changed && asks < Self::MODE_ASKS_PER_READ {
+                    self.mode = Some((os, mac_keys, asks + 1));
+                    return json!({ "mode": p::os_mode_id(os), "macKeys": mac_keys,
+                        "macKeysLatest": self.mac_keys_latest, "live": true });
+                }
+            }
+        }
+        let os = self.session().and_then(Session::os_mode);
+        let mac_keys = os == Ok(p::OS_WINDOWS)
             && self
                 .read_layer(p::LAYER_FN)
                 .is_ok_and(|f| p::code_at(&f, layout::E_INDEX as usize) == p::os_mode_key(p::OS_WINDOWS));
-        json!({ "mode": os, "macKeys": mac_keys })
+        self.mac_keys_latest = mac_keys && self.holds_latest_mac_keys();
+        // What this read itself drained is already in the answer.
+        self.mode = match (&os, live) {
+            (Ok(os), true) if self.session().and_then(Session::take_changed).is_ok() => Some((*os, mac_keys, 0)),
+            _ => None,
+        };
+        json!({ "mode": os.map_or("", p::os_mode_id), "macKeys": mac_keys,
+            "macKeysLatest": self.mac_keys_latest, "live": live })
     }
 
     /// Put the keyboard in an OS mode, as Fn+W / Fn+E / Fn+Q do. Mac mode sends media keys on
@@ -896,15 +1001,16 @@ impl Service {
         Ok(())
     }
 
-    /// Mac keys without Mac mode: Mac mode's F-row and ⌘/⌥ swap are built into the firmware
-    /// and ignore every key layer, so remaps can't work there. This puts the keyboard in
-    /// Windows mode and gives it Mac keys through the layers instead: ⌘ and ⌥ in their Mac
-    /// places, brightness, Mission Control, Spotlight and media on F1-F12 (the F-key itself
-    /// under Fn), and Fn+E switching to Windows mode rather than Mac mode. Keys already
-    /// changed are left as they are.
+    /// Flash Mac keys: Mac mode's F-row and ⌘/⌥ swap are built into the firmware and ignore
+    /// every key layer, so remaps can't work there (and on a current macOS some of its top row
+    /// does nothing). This puts the keyboard in Windows mode and writes the app's latest Mac
+    /// keys into the layers, whatever those keys held: ⌘ and ⌥ in their Mac places,
+    /// [`MAC_TOP_ROW`] on F1-F12 with the F-key itself under Fn, and Fn+E switching to Windows
+    /// mode rather than Mac mode. In Windows mode the knob's turn is the volume. Every other
+    /// key keeps what it has.
     pub fn mac_keys(&mut self) -> Json {
         self.load();
-        match self.set_up_mac_keys() {
+        match self.set_up_mac_keys(true) {
             Ok(()) => reply(true, ""),
             Err(e) => {
                 let e = self.failed(e);
@@ -913,7 +1019,36 @@ impl Service {
         }
     }
 
-    fn set_up_mac_keys(&mut self) -> Result<(), String> {
+    /// The Mac keys as (layer, index, code): what [`Service::mac_keys`] writes.
+    fn mac_keyset() -> Vec<(u8, u8, p::Code)> {
+        let factory = |i: u8| layout::key(i).map_or([0; 4], |k| k.factory);
+        let (cmd, opt) = (layout::LEFT_CMD_INDEX, layout::LEFT_OPT_INDEX);
+        let mut v = vec![
+            (p::LAYER_BASE, cmd, factory(opt)),
+            (p::LAYER_BASE, opt, factory(cmd)),
+            (p::LAYER_FN, layout::E_INDEX, p::os_mode_key(p::OS_WINDOWS)),
+        ];
+        for (f, code) in layout::F_KEYS.iter().zip(MAC_TOP_ROW) {
+            v.push((p::LAYER_BASE, *f, code.unwrap_or(factory(*f))));
+            if code.is_some() {
+                v.push((p::LAYER_FN, *f, factory(*f)));
+            }
+        }
+        v
+    }
+
+    fn holds_latest_mac_keys(&mut self) -> bool {
+        let (Ok(base), Ok(fn_layer)) = (self.read_layer(p::LAYER_BASE), self.read_layer(p::LAYER_FN)) else {
+            return false;
+        };
+        Self::mac_keyset()
+            .iter()
+            .all(|(layer, i, code)| p::code_at(if *layer == p::LAYER_BASE { &base } else { &fn_layer }, *i as usize) == *code)
+    }
+
+    /// Windows mode with the Mac keys in the layers. `flash` writes every one of them; without
+    /// it (a key changed while in Mac mode) keys the owner already changed are left as they are.
+    fn set_up_mac_keys(&mut self, flash: bool) -> Result<(), String> {
         let before = self.session()?.os_mode()?;
         if before != p::OS_WINDOWS {
             let after = self.session()?.set_os_mode(p::OS_WINDOWS)?;
@@ -926,21 +1061,24 @@ impl Service {
         let mut base = self.read_layer(p::LAYER_BASE)?;
         let mut fn_layer = self.read_layer(p::LAYER_FN)?;
         let (base_was, fn_was) = (base.clone(), fn_layer.clone());
-        let (cmd, opt) = (layout::LEFT_CMD_INDEX, layout::LEFT_OPT_INDEX);
-        if p::code_at(&base, cmd as usize) == factory(cmd) && p::code_at(&base, opt as usize) == factory(opt) {
-            p::set_code(&mut base, cmd as usize, factory(opt));
-            p::set_code(&mut base, opt as usize, factory(cmd));
-        }
-        for (f, code) in layout::F_KEYS.iter().zip(MAC_TOP_ROW) {
-            let i = *f as usize;
-            if let Some(code) = code {
-                if p::code_at(&base, i) == factory(*f) {
-                    p::set_code(&mut base, i, code);
-                    p::set_code(&mut fn_layer, i, factory(*f));
+        let (cmd, opt) = (layout::LEFT_CMD_INDEX as usize, layout::LEFT_OPT_INDEX as usize);
+        // ⌘ and ⌥ move together or not at all.
+        let modifiers = flash || (p::code_at(&base, cmd) == factory(cmd as u8) && p::code_at(&base, opt) == factory(opt as u8));
+        for (layer, index, code) in Self::mac_keyset() {
+            let i = index as usize;
+            let write = match (layer, i) {
+                (p::LAYER_BASE, i) if i == cmd || i == opt => modifiers,
+                (p::LAYER_BASE, _) => flash || p::code_at(&base, i) == factory(index),
+                // A top-row key the owner changed keeps its Fn entry too.
+                (_, _) if layout::F_KEYS.contains(&index) => {
+                    flash || p::code_at(&base_was, i) == factory(index)
                 }
+                _ => true,
+            };
+            if write {
+                p::set_code(if layer == p::LAYER_BASE { &mut base } else { &mut fn_layer }, i, code);
             }
         }
-        p::set_code(&mut fn_layer, layout::E_INDEX as usize, p::os_mode_key(p::OS_WINDOWS));
         if base != base_was {
             self.write_layer(p::LAYER_BASE, &base, None)?;
         }
@@ -983,7 +1121,7 @@ impl Service {
         // A change made in Mac or Android mode would be stored and then ignored (the mode is
         // built into the firmware), so leave it first: Mac mode for Mac keys, Android for Windows.
         let leave = match self.session().and_then(Session::os_mode) {
-            Ok(p::OS_MAC) => self.set_up_mac_keys(),
+            Ok(p::OS_MAC) => self.set_up_mac_keys(false),
             Ok(p::OS_ANDROID) => self.switch_os_mode(p::OS_WINDOWS),
             _ => Ok(()),
         };
@@ -1039,6 +1177,7 @@ impl Service {
         self.load();
         // Keys on the board are picked from it; every modifier is listed, left and right.
         let on_board: Vec<String> = layout::keys()
+            .filter(|k| k.index != layout::KNOB_INDEX)
             .map(|k| keycodes::target_of(k.factory).0)
             .filter(|id| !id.starts_with("m:"))
             .collect();
@@ -1312,6 +1451,112 @@ mod tests {
         assert_eq!(k["rows"][0]["keys"][0]["label"], "Esc");
         assert_eq!(k["rows"][0]["keys"][0]["action"], "Esc");
         assert_eq!(k["rows"][0]["keys"][0]["changed"], false);
+    }
+
+    #[test]
+    fn the_mode_is_answered_from_memory_until_something_changes() {
+        let mut s = sim();
+        let m = s.keyboard_mode();
+        assert_eq!((&m["mode"], &m["live"]), (&json!("mac"), &json!(true)));
+        assert_eq!(s.mode, Some((p::OS_MAC, false, 0)));
+        // Asked again with nothing changed: no read, up to the limit, then a read.
+        for asks in 1..=Service::MODE_ASKS_PER_READ {
+            assert_eq!(s.keyboard_mode()["mode"], "mac");
+            assert_eq!(s.mode, Some((p::OS_MAC, false, asks)));
+        }
+        assert_eq!(s.keyboard_mode()["mode"], "mac");
+        assert_eq!(s.mode, Some((p::OS_MAC, false, 0)));
+        // A write is a change: the next ask reads the keyboard.
+        assert_eq!(s.set_os_mode(p::OS_WINDOWS)["ok"], true);
+        assert_eq!(s.keyboard_mode()["mode"], "windows");
+        assert_eq!(s.mode, Some((p::OS_WINDOWS, false, 0)));
+    }
+
+    #[test]
+    fn mac_mode_shows_its_own_top_row_and_modifiers() {
+        let mut s = sim();
+        let key = |s: &mut Service, layer: u8, row: usize, i: usize| s.keymap(layer)["rows"][row]["keys"][i].clone();
+        // Base layer: a Mac's top row, not F1-F12, and ⌥ ⌘ in their Mac places.
+        let f1 = key(&mut s, 0, 0, 1);
+        assert_eq!((&f1["label"], &f1["action"], &f1["cap"]), (&json!("F1"), &json!("Brightness Down"), &json!("Bri−")));
+        assert_eq!((&f1["builtIn"], &f1["changed"], &f1["target"]), (&json!(true), &json!(false), &json!("c:112")));
+        assert_eq!(key(&mut s, 0, 0, 12)["action"], "Volume Up");
+        let f4 = key(&mut s, 0, 0, 4);
+        assert_eq!((&f4["action"], &f4["cap"], &f4["target"]), (&json!("its own key, which can't be set here"), &json!(""), &json!("k:61")));
+        assert_eq!(key(&mut s, 0, 0, 3)["cap"], "");
+        assert_eq!(key(&mut s, 0, 0, 5)["cap"], "");
+        assert_eq!(key(&mut s, 0, 0, 6)["cap"], "");
+        assert_eq!(key(&mut s, 0, 5, 1)["action"], "Left Option");
+        assert_eq!(key(&mut s, 0, 5, 2)["action"], "Left Command");
+        assert_eq!(key(&mut s, 0, 0, 0)["builtIn"], false);
+        // Fn layer: the F-keys themselves.
+        let f12 = key(&mut s, 1, 0, 12);
+        assert_eq!((&f12["action"], &f12["builtIn"]), (&json!("F12"), &json!(true)));
+        assert_eq!((&key(&mut s, 1, 0, 5)["action"], &key(&mut s, 1, 0, 5)["builtIn"]), (&json!("F5"), &json!(true)));
+        // Windows mode shows the layers as they are.
+        assert_eq!(s.set_os_mode(p::OS_WINDOWS)["ok"], true);
+        let f1 = key(&mut s, 0, 0, 1);
+        assert_eq!((&f1["action"], &f1["builtIn"]), (&json!("F1"), &json!(false)));
+    }
+
+    #[test]
+    fn flashing_mac_keys_writes_the_latest_set_over_what_was_there() {
+        let mut s = sim();
+        let key = |s: &mut Service, layer: u8, row: usize, i: usize| s.keymap(layer)["rows"][row]["keys"][i].clone();
+        // A key changed in Mac mode sets Mac keys up around it: the change is kept, so the
+        // set is not the latest one.
+        assert_eq!(s.assign(0, 78, "s:33:10", 0)["ok"], true);
+        let m = s.keyboard_mode();
+        assert_eq!((&m["mode"], &m["macKeys"], &m["macKeysLatest"]), (&json!("windows"), &json!(true), &json!(false)));
+        assert_eq!(s.assign(0, 3, "k:41", 0)["ok"], true); // Caps Lock as Escape
+        // Flashing writes every Mac key and nothing else.
+        assert_eq!(s.mac_keys()["ok"], true);
+        let m = s.keyboard_mode();
+        assert_eq!((&m["macKeys"], &m["macKeysLatest"]), (&json!(true), &json!(true)));
+        assert_eq!(key(&mut s, 0, 0, 12)["action"], "Volume Up");
+        assert_eq!(key(&mut s, 1, 0, 12)["action"], "F12");
+        assert_eq!(key(&mut s, 0, 0, 3)["action"], "Mission Control (⌃Up)");
+        assert_eq!(key(&mut s, 0, 0, 5)["action"], "F5");
+        assert_eq!(key(&mut s, 0, 5, 1)["action"], "Left Option");
+        assert_eq!(key(&mut s, 0, 3, 0)["action"], "Esc");
+        // From plain Windows mode too.
+        let mut s = sim();
+        assert_eq!(s.set_os_mode(p::OS_WINDOWS)["ok"], true);
+        assert_eq!(s.keyboard_mode()["macKeysLatest"], false);
+        assert_eq!(s.mac_keys()["ok"], true);
+        assert_eq!(s.keyboard_mode()["macKeysLatest"], true);
+        assert_eq!(key(&mut s, 0, 5, 2)["action"], "Left Command");
+    }
+
+    #[test]
+    fn the_knobs_turn_is_shown_with_its_press() {
+        let mut s = sim();
+        let knob = |s: &mut Service, layer: u8| s.keymap(layer)["rows"][0]["keys"][13].clone();
+        assert_eq!(knob(&mut s, 0)["turn"], "turning it does nothing in Mac mode");
+        assert_eq!(s.mac_keys()["ok"], true);
+        let k = knob(&mut s, 0);
+        assert_eq!((&k["turn"], &k["turnCap"]), (&json!("turning it changes the volume"), &json!("↻ Vol")));
+        assert_eq!(knob(&mut s, 1)["turn"], "");
+        assert_eq!(s.keymap(0)["rows"][0]["keys"][12]["turn"], "");
+    }
+
+    #[test]
+    fn the_knobs_press_is_shown_and_can_be_changed() {
+        let mut s = sim();
+        assert_eq!(s.set_os_mode(p::OS_WINDOWS)["ok"], true);
+        let knob = |s: &mut Service| s.keymap(0)["rows"][0]["keys"][13].clone();
+        let k = knob(&mut s);
+        assert_eq!((&k["index"], &k["label"], &k["action"]), (&json!(84), &json!("Knob"), &json!("Next lighting effect")));
+        assert_eq!((&k["target"], &k["changed"]), (&json!("x:29"), &json!(false)));
+        assert_eq!(s.assign(0, layout::KNOB_INDEX, "c:226", 0)["ok"], true); // Mute
+        let k = knob(&mut s);
+        assert_eq!((&k["action"], &k["changed"]), (&json!("Mute"), &json!(true)));
+        assert_eq!(s.assign(0, layout::KNOB_INDEX, "x:29", 0)["ok"], true); // and back
+        assert_eq!(knob(&mut s)["changed"], false);
+        // It is offered with the special actions, not as a key on the picker's board.
+        let special = s.targets()[0].clone();
+        assert!(special["targets"].as_array().unwrap().iter().any(|t| t["id"] == "x:29"));
+        assert!(!picker_layout().to_string().contains("Knob"));
     }
 
     #[test]

@@ -92,6 +92,15 @@ pub const WIRED: Cmds = Cmds {
 };
 /// Receiver only: one byte, 1 when the keyboard is linked to the receiver (awake and in range).
 pub const WIRELESS_ONLINE: u8 = 0x07;
+/// Receiver only, never asked for: the keyboard sends `13 0a 01 00 04 07 00 00 00 …` the moment
+/// a setting is changed on the keyboard itself (seen for Fn+W and Fn+E; the packet is the same
+/// for both, so it says that something changed, not what).
+pub const WIRELESS_CHANGED: u8 = 0x0a;
+
+/// Whether an input report is the keyboard saying a setting was changed on it.
+pub fn is_change_notice(p: &[u8]) -> bool {
+    parse_reply(p).is_some_and(|r| r.cmd == WIRELESS_CHANGED && !r.crc_error)
+}
 
 impl Link {
     /// This link's command table.
@@ -592,6 +601,18 @@ mod tests {
         );
         p[1] = 0xc1;
         assert!(parse_reply(&p).unwrap().crc_error);
+    }
+
+    #[test]
+    fn a_change_notice_is_told_from_replies_and_typing() {
+        let mut p = [0u8; 20];
+        p[..6].copy_from_slice(&[0x13, 0x0a, 0x01, 0x00, 0x04, 0x07]);
+        p[19] = checksum(&p);
+        assert_eq!(p[19], 0x29); // as recorded from a keyboard
+        assert!(is_change_notice(&p));
+        p[1] = 0x44; // a settings-block reply
+        assert!(!is_change_notice(&p));
+        assert!(!is_change_notice(&[0x04; 20])); // an NKRO report
     }
 
     #[test]

@@ -148,6 +148,10 @@ impl Wire for HidWire {
         self.link
     }
 
+    fn listens(&self) -> bool {
+        self.link == Link::Receiver
+    }
+
     fn send_report(&mut self, packet: &[u8]) -> Result<(), String> {
         self.device
             .write(packet)

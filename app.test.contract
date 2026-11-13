@@ -142,11 +142,16 @@ test "Mac mode is called out, and Windows mode keeps ⌘ and ⌥ where they were
   tap "tab-keys"
   clock data
   expect state mode.mode == "mac"
+  expect state keymap.rows.0 .keys.1 .action == "Brightness Down"
+  expect state keymap.rows.0 .keys.1 .builtIn == true
+  expect state keymap.rows.5 .keys.1 .action == "Left Option"
   tap "use-windows"
   clock data
   clock settle
   expect state mode.mode == "windows"
   expect state mode.macKeys == false
+  expect state keymap.rows.0 .keys.1 .action == "F1"
+  expect state keymap.rows.0 .keys.1 .builtIn == false
   expect state keymap.rows.5 .keys.1 .action == "Left Option"
   expect state keymap.rows.5 .keys.2 .action == "Left Command"
 
@@ -159,8 +164,10 @@ test "Mac keys: Windows mode with a Mac's top row, and Fn+E kept from Mac mode"
   clock settle
   expect state mode.mode == "windows"
   expect state mode.macKeys == true
+  expect state mode.macKeysLatest == true
   expect state keymap.rows.5 .keys.1 .action == "Left Option"
   expect state keymap.rows.0 .keys.12 .action == "Volume Up"
+  expect state keymap.rows.0 .keys.13 .turnCap == "↻ Vol"
   tap "layer-fn"
   clock data
   expect state keymap.rows.0 .keys.12 .action == "F12"
@@ -179,3 +186,15 @@ test "a key changed in Mac mode sets up Mac keys first, so the change works"
   expect state mode.mode == "windows"
   expect state mode.macKeys == true
   expect state keymap.rows.0 .keys.12 .action == "Selected area (⇧⌘4)"
+
+test "Mac keys are flashed in one click from the Keyboard screen"
+  clock data
+  expect state status.state == "ready"
+  expect text "mac-keys-state" == "Not flashed (Mac mode)"
+  tap "flash-mac-keys"
+  clock data
+  clock settle
+  expect state mode.mode == "windows"
+  expect state mode.macKeysLatest == true
+  expect text "mac-keys-state" == "Flashed"
+  expect state keymap.rows.0 .keys.3 .action == "Mission Control (⌃Up)"

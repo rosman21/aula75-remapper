@@ -150,6 +150,12 @@ pub fn targets(macros: &[String]) -> Vec<Target> {
             label: "Fn".into(),
             group: "Special",
         },
+        // What pressing the knob does as shipped.
+        Target {
+            id: "x:29".into(),
+            label: "Next lighting effect".into(),
+            group: "Special",
+        },
     ];
     v.extend(SHORTCUTS.iter().map(|&(group, name, usage, mods)| Target {
         id: format!("s:{usage}:{mods}"),
@@ -201,6 +207,8 @@ pub fn code_for(id: &str, mods: u8) -> Option<Code> {
         "m" => rest.parse::<u8>().ok().map(|b| key_code(0, b | mods)),
         "c" => rest.parse().ok().map(consumer_code),
         "macro" => rest.parse().ok().map(|i| macro_code(i, 1, 1)),
+        // One of the keyboard's own functions.
+        "x" => rest.parse().ok().map(|f| [7, 0, 0, f]),
         _ => None,
     }
 }
@@ -214,6 +222,7 @@ pub fn target_of(code: Code) -> (String, u8) {
         [0, mods, _, usage] => (format!("k:{usage}"), mods),
         [2, _, hi, lo] => (format!("c:{}", u16::from(hi) << 8 | u16::from(lo)), 0),
         [3, _, _, index] => (format!("macro:{index}"), 0),
+        [7, 0, 0, function] => (format!("x:{function}"), 0),
         _ => ("none".into(), 0),
     }
 }
@@ -237,6 +246,7 @@ pub fn describe(code: Code, macros: &[String]) -> String {
         [7, 0, 0, 0x18] => "Windows mode".into(),
         [7, 0, 0, 0x19] => "Android mode".into(),
         [7, 0, 0, 0x1a] => "Mac mode".into(),
+        [7, 0, 0, 0x1d] => "Next lighting effect".into(),
         [0, mods, _, 0] => {
             let names: Vec<&str> = MODIFIERS
                 .iter()
