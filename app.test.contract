@@ -198,3 +198,8 @@ test "Mac keys are flashed in one click from the Keyboard screen"
   expect state mode.macKeysLatest == true
   expect text "mac-keys-state" == "Flashed"
   expect state keymap.rows.0 .keys.3 .action == "Mission Control (⌃Up)"
+
+test "the app says its version, and offers no update where it doesn't ask for one"
+  clock data
+  expect state update.available == false
+  expect tree has "version"

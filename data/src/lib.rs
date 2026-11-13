@@ -8,6 +8,7 @@ pub mod protocol;
 pub mod remote;
 pub mod session;
 pub mod sim;
+pub mod update;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod hid;
