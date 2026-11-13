@@ -74,6 +74,13 @@ shape KeyboardMode
   macKeysLatest: bool
   live: bool
 
+shape AppUpdate
+  version: string
+  available: bool
+  latest: string
+  notes: string
+  url: string
+
 shape Target
   id: string
   label: string
@@ -142,6 +149,8 @@ component App
   resource sleeps = sleepChoices() as shape SleepChoice[] else empty()
   resource keymap = keymap(layer, status.epoch, mode.mode) as shape Keymap else empty()
   resource mode = keyboardMode(status.epoch) as shape KeyboardMode else empty()
+  // Asked once at launch: the Mac app reads the site's latest.json; the web app never asks.
+  resource update = appUpdate() as shape AppUpdate else empty()
   resource targets = targets() as shape TargetGroup[] else empty()
   resource board = pickerLayout() as shape PickRow[] else empty()
   resource macros = macroList() as shape MacroInfo[] else empty()
@@ -232,7 +241,8 @@ component App
             for e in t.stack key=e.id
               if e.name == "device"
                 DeviceScreen(route=e.id, status=status, allow=allow, demo=demo, check=checkStatus, allowError=replyError(allowed),
-                  mode=mode, macKeys=setUpMacKeys, switching=(pending(osSet) or pending(macSet)), modeError=replyError(macSet))
+                  mode=mode, macKeys=setUpMacKeys, switching=(pending(osSet) or pending(macSet)), modeError=replyError(macSet),
+                  update=update)
               if e.name == "keys"
                 KeysScreen(route=e.id, status=status, keymap=keymap, mode=mode, layer=layer, pickLayer=pickLayer,
                   restore=restore, reload=reloadKeys, busy=(pending(keymap) or pending(restored) or pending(reloaded)), restoreError=replyError(restored),
@@ -307,6 +317,7 @@ component DeviceScreen
     macKeys: action
     switching: bool
     modeError: string
+    update: AppUpdate
   view
     column navigationKey=`${route}` navigationScroll=`device-${route}` position="absolute" inset=0
       display="flex" flex-direction="column"
@@ -361,6 +372,20 @@ component DeviceScreen
                   text modeError color="-exact-system-red" font="-exact-footnote" testId="flash-error"
               footer
                 text "One click writes this app's latest Mac keys to the keyboard: ⌘ and ⌥ in their Mac places, brightness, Mission Control, Spotlight and media on F1–F12 (the F-key with Fn), the knob turning the volume, and Fn+E kept from switching back to the keyboard's own Mac mode, where some of those keys do nothing on a current macOS. It replaces what those keys do now; every other key keeps your changes."
+        if update.available
+          section testId="update"
+            header
+              text "Update available"
+            row
+              text `Remap75 ${update.latest}`
+              text `You have ${update.version}` color="-exact-secondary-label"
+            if update.notes != ""
+              row
+                text update.notes color="-exact-secondary-label" testId="update-notes"
+            link href=update.url testId="update-download"
+              text `Download ${update.latest}`
+            footer
+              text "Opens the download in your browser. Quit Remap75, open the disk image and drag the app into Applications, replacing the old one. Your keys, lighting and macros are stored on the keyboard and stay as they are."
         section
           header
             text "If the receiver doesn't connect"
@@ -372,6 +397,11 @@ component DeviceScreen
             text "3. Or use the USB-C cable with the switch on wired: the app switches to it by itself."
           footer
             text "Bluetooth can't change settings. Settings you write keep working over Bluetooth."
+        if update.version != ""
+          section
+            row
+              text "Remap75 version"
+              text update.version color="-exact-secondary-label" testId="version"
 
 component KeysScreen
   props

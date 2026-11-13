@@ -30,6 +30,10 @@ cp -R site/dist/. target/site/
 dmg=$(ls target/dist/*/"Remap75.dmg" 2>/dev/null | head -1 || true)
 if [ -n "$dmg" ]; then
   mkdir -p target/site/download && cp "$dmg" target/site/download/Remap75.dmg
+  # What installed apps read to learn of an update (written by `bun run release <version>`):
+  # published in the same deploy as the DMG it names.
+  feed="$(dirname "$dmg")/latest.json"
+  if [ -f "$feed" ]; then cp "$feed" target/site/latest.json; else echo "warning: no latest.json beside the DMG; installed apps won't hear of this build" >&2; fi
 else
   echo "warning: no notarized DMG yet (bun run release); the Download button will 404" >&2
 fi

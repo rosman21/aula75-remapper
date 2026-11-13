@@ -365,20 +365,48 @@ Monitoring permission across rebuilds.
 
 ## Releasing the Mac app
 
+Releases are run from a Mac, by one script; no CI service builds or publishes anything.
+
 ```sh
 xcrun notarytool store-credentials aula75-notary --apple-id <Apple ID> --team-id <TEAM ID>  # once
-bun run release
+npx wrangler login   # once
+gh auth login        # once
+
+bun run release 0.2.0 "One line of what changed"
 ```
 
 `scripts/release.sh`:
 
-1. Runs Exact's `release` verb with `EXACT_DEVELOPER_ID` and `EXACT_NOTARY_PROFILE`. This
-   builds a production app (arm64), signs it with the hardened runtime and a timestamp,
-   notarizes it as a zip, staples the ticket and builds a DMG.
-2. Exact doesn't sign or notarize the DMG itself, so the script then signs the DMG, submits it
-   to `notarytool`, staples it, and checks both the DMG and the app with `spctl`.
+1. **Checks**: a clean tree, a version later than the current one, no such tag yet.
+2. **Tests**: `cargo test` in `data/` and the app's contract tests.
+3. **Version**: sets the workspace version in `Cargo.toml`. The app shows it on the Keyboard
+   screen and the bundle carries it (`CFBundleShortVersionString`).
+4. **Build**: Exact's `release` verb builds a production app (arm64), signs it with the hardened
+   runtime and a timestamp, notarizes it as a zip, staples the ticket and builds a DMG. Exact
+   doesn't sign or notarize the DMG itself, so the script signs it, submits it to `notarytool`,
+   staples it, and checks both the DMG and the app with `spctl`.
+5. **Feed**: writes `latest.json` (`version`, `url`, `notes`, `released`) beside the DMG.
+6. **Commit and tag**: `Release <version>` and `v<version>`.
+7. **Publish**, after asking: `scripts/deploy.sh` (the site with the DMG and `latest.json`, and
+   the web app), `git push` of the commit and tag, and a GitHub release with the DMG attached.
 
-Output: `target/dist/aula-75-keyboard-software/Remap75.dmg` (about 9 MB), plus a dSYM.
+`--dry-run` runs steps 1 to 3 and 5 and puts the version back. `--no-publish` stops after
+step 6, and `bun run release --publish` publishes that build later. `--yes` doesn't ask.
+If a step fails before the commit, the version is put back.
+
+Output: `target/dist/aula-75-keyboard-software/Remap75.dmg` (about 9 MB), `Remap75-<version>.dmg`,
+`latest.json`, plus a dSYM.
+
+### How installed apps learn of an update
+
+At launch the Mac app fetches `https://remap75.app/latest.json` once (`data/src/update.rs`).
+That is the only request the app makes by itself, it sends nothing about the user or the
+keyboard, and `remap75.app` is the only origin the app is granted. When the file names a later
+version, the Keyboard screen shows **Update available** with the release's one-line notes and a
+link that opens the DMG download in the browser; the user replaces the app by hand. No answer
+(offline, a 404) is simply no update. The web app is always the latest and never asks.
+
+Builds from before this check (0.1.0) can't hear of updates: those users need to download once more.
 
 ---
 
@@ -406,7 +434,7 @@ The domains are Cloudflare **custom domains** set in the `routes` of each config
 certificates on deploy. `workers_dev` and `preview_urls` are off, so the apps are only served
 on those domains.
 
-To ship an update: `bun run release` (only when the Mac app changed), then `bun run deploy`.
+To ship an update: `bun run release <version> "<what changed>"` when the Mac app changed (it deploys too), or `bun run deploy` alone for the site and web app.
 
 Deploys are run **by hand from a Mac**, not from GitHub. Cloudflare's Git builds can't build this
 project: they don't have the Exact checkout (with its [local patch](#a-local-patch-to-exact-required-for-the-web-build)),

@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use exact_runner::{Answer, DataError, DataSource, Outcome, Request, Response, Store, Value};
+use exact_runner::{Answer, DataError, DataSource, HttpScheduling, Outcome, Request, Response, Store, Value};
 use serde_json::Value as Json;
 
 use crate::protocol as p;
@@ -134,6 +134,9 @@ pub struct Aula {
     service: Arc<Mutex<Service>>,
     /// The browser: each call replays through the page module.
     remote: bool,
+    /// Whether to ask the site for a newer version: the Mac and Linux apps, not the browser
+    /// (always the latest) and not a run on the simulated keyboard (tests).
+    checks_updates: bool,
     calls: HashMap<u64, Call>,
     next: u64,
 }
@@ -152,6 +155,7 @@ impl Default for Aula {
         };
         Aula {
             remote: false,
+            checks_updates: !simulate,
             service: Arc::new(Mutex::new(Service::new(simulate, dir))),
             calls: HashMap::new(),
             next: 0,
@@ -164,6 +168,7 @@ impl Aula {
     pub fn remote() -> Aula {
         Aula {
             remote: true,
+            checks_updates: false,
             service: Arc::new(Mutex::new(Service::new_remote())),
             calls: HashMap::new(),
             next: 0,
@@ -230,6 +235,11 @@ impl DataSource for Aula {
         "com.remap75.app"
     }
 
+    /// The one origin the app reaches: the site, for [`crate::update::FEED`].
+    fn grants(&self) -> &str {
+        "net.fetch https://remap75.app"
+    }
+
     /// Static tables now; the keyboard only at run time.
     fn query(&mut self, source: &str, _args: &[Value]) -> Result<Value, DataError> {
         match source {
@@ -252,6 +262,16 @@ impl DataSource for Aula {
             "effects" | "palette" | "sleepChoices" | "pickerLayout"
         ) {
             return self.query(source, args).map(Answer::Now);
+        }
+        if source == "appUpdate" {
+            if !self.checks_updates {
+                return Ok(Answer::Now(to_value(&crate::update::none())));
+            }
+            // Beside the keyboard's lane, so a slow network never holds a key change up.
+            let mut feed = Request::get(crate::update::FEED);
+            feed.http = HttpScheduling::Independent { max_response_bytes: 64 << 10 };
+            feed.timeout_ms = Some(10_000);
+            return Ok(Answer::Later(feed));
         }
         let call = Call::parse(source, args)?;
         if self.remote {
@@ -287,6 +307,14 @@ impl DataSource for Aula {
         args: &[Value],
         outcome: Outcome,
     ) -> Result<Answer, DataError> {
+        if source == "appUpdate" {
+            // No answer from the site is no update, never an error on the screen.
+            let update = match outcome {
+                Outcome::Response(r) if r.status == 200 => crate::update::from_feed(&r.body, crate::update::VERSION),
+                _ => crate::update::none(),
+            };
+            return Ok(Answer::Now(to_value(&update)));
+        }
         match outcome {
             Outcome::Response(r) => {
                 let j: Json = serde_json::from_slice(&r.body).map_err(|e| {
