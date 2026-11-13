@@ -31,6 +31,8 @@ impl Default for SimKeyboard {
         p::set_sleep(&mut led, 300);
         led[0x38] = 0xff;
         led[0x39] = 0xff;
+        // As many keyboards on a Mac are: in Mac mode (Fn+E).
+        led[p::OS_MODE_OFFSET] = p::OS_MAC;
         led[126] = 0x5a;
         led[127] = 0xa5;
         let mut fn_layer = vec![0u8; p::KEYMAP_LEN];
@@ -53,6 +55,12 @@ impl Default for SimKeyboard {
 }
 
 impl SimKeyboard {
+    /// Fn+W / Fn+Q / Fn+E pressed on the keyboard: it switches, and says a setting changed.
+    pub fn press_mode_key(&mut self, mode: u8) {
+        self.led[p::OS_MODE_OFFSET] = mode;
+        self.reply(p::WIRELESS_CHANGED, 1, 0, 0, &[7, 0, 0, 0]);
+    }
+
     fn reply(&mut self, cmd: u8, total: u8, index: u8, sub: u8, chunk: &[u8]) {
         let mut pk = [0u8; p::PACKET_LEN];
         pk[0] = p::REPORT_ID;
@@ -102,6 +110,10 @@ impl SimKeyboard {
 impl Wire for SimKeyboard {
     fn link(&self) -> Link {
         Link::Receiver
+    }
+
+    fn listens(&self) -> bool {
+        true
     }
 
     fn send_report(&mut self, pk: &[u8]) -> Result<(), String> {
@@ -188,6 +200,31 @@ mod tests {
         .unwrap();
         s.write_keymap(0, &base, Some(&macros)).unwrap();
         assert_eq!(p::code_at(&s.keymap(0).unwrap(), 3), [0, 0, 0, 0x29]);
+    }
+
+    #[test]
+    fn a_mode_key_pressed_on_the_keyboard_is_noticed_without_asking() {
+        let mut s = Session::new(Box::new(SimKeyboard::default()));
+        assert!(s.take_changed().unwrap()); // nothing read yet
+        assert_eq!(s.os_mode().unwrap(), p::OS_MAC);
+        assert!(!s.take_changed().unwrap());
+        let mut sim = SimKeyboard::default();
+        sim.press_mode_key(p::OS_WINDOWS);
+        let mut s = Session::new(Box::new(sim));
+        s.changed_for_test(false);
+        assert!(s.take_changed().unwrap()); // the notice alone
+        assert!(!s.take_changed().unwrap());
+        assert_eq!(s.os_mode().unwrap(), p::OS_WINDOWS);
+        // A notice that arrives among a read's replies is kept too.
+        let mut sim = SimKeyboard::default();
+        sim.press_mode_key(p::OS_WINDOWS);
+        let mut s = Session::new(Box::new(sim));
+        s.changed_for_test(false);
+        assert!(s.online().unwrap());
+        assert!(s.take_changed().unwrap());
+        // And the app's own writes count as changes.
+        s.set_os_mode(p::OS_MAC).unwrap();
+        assert!(s.take_changed().unwrap());
     }
 
     #[test]

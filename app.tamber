@@ -14,3 +14,6 @@ theme
   // The status badge behind the Keyboard tab's icon.
   badge.ready = light-dark(#dcfce7, #123222)
   badge.idle = light-dark(#eef0f4, #26262b)
+  // The note on the Keys screen when the keyboard's mode overrides its keys.
+  surface.notice = light-dark(#fff7ed, #2b1f12)
+  edge.notice = light-dark(#fed7aa, #5c3d1a)

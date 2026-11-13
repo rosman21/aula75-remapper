@@ -1,4 +1,4 @@
-//! The AULA F75 physical layout: 80 keys in six rows, each with its matrix index
+//! The AULA F75 physical layout: 80 keys in six rows and the knob's press, each with its matrix index
 //! (the same number addresses the key's 4-byte slot in a layer and its LED:
 //! `index = column * 6 + row`, from AULA's `KB.ini`), its legend and its factory code.
 
@@ -52,6 +52,7 @@ pub const ROWS: &[&[Key]] = &[
         k(66, "F10", 1.0, 0.0, u(0x43)),
         k(72, "F11", 1.0, 0.0, u(0x44)),
         k(78, "F12", 1.0, 0.0, u(0x45)),
+        k(KNOB_INDEX, "Knob", 1.0, 0.75, KNOB_FACTORY),
     ],
     &[
         k(1, "`", 1.0, 0.0, u(0x35)),
@@ -137,6 +138,24 @@ pub fn keys() -> impl Iterator<Item = &'static Key> {
     ROWS.iter().flat_map(|r| r.iter())
 }
 
+/// The key right of the left Ctrl, which ships as ⌘ (the Windows key).
+pub const LEFT_CMD_INDEX: u8 = 11;
+/// The key left of Space, which ships as ⌥ (Alt).
+pub const LEFT_OPT_INDEX: u8 = 17;
+
+/// Pressing the knob, right of F12 (over Del). Only the press has a slot in the key layers:
+/// turning it is built into the keyboard (the volume in Windows mode; in Mac mode it sends no
+/// key at all), so it can't be changed here.
+pub const KNOB_INDEX: u8 = 84;
+/// The knob's press as shipped: the keyboard's own "next lighting effect".
+pub const KNOB_FACTORY: Code = [7, 0, 0, 0x1d];
+
+/// E, whose Fn-layer entry is Fn+E (Mac mode, as shipped).
+pub const E_INDEX: u8 = 20;
+
+/// F1-F12's matrix indices.
+pub const F_KEYS: [u8; 12] = [12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
+
 /// The key at matrix index `index`.
 pub fn key(index: u8) -> Option<&'static Key> {
     keys().find(|k| k.index == index)
@@ -171,12 +190,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eighty_keys_with_unique_indexes() {
+    fn eighty_keys_and_the_knob_with_unique_indexes() {
         let mut seen: Vec<u8> = keys().map(|k| k.index).collect();
-        assert_eq!(seen.len(), 80);
+        assert_eq!(seen.len(), 81);
         seen.sort_unstable();
         seen.dedup();
-        assert_eq!(seen.len(), 80);
+        assert_eq!(seen.len(), 81);
+        // The knob sits over Del, the last column.
+        let x = |row: usize, index: u8| -> f32 {
+            ROWS[row].iter().take_while(|k| k.index != index).map(|k| k.width + k.gap).sum::<f32>()
+                + key(index).unwrap().gap
+        };
+        assert_eq!(x(0, KNOB_INDEX), x(1, 85));
         assert!(seen
             .iter()
             .all(|i| (*i as usize) < crate::protocol::MATRIX_LEN - 1));
@@ -184,7 +209,7 @@ mod tests {
 
     #[test]
     fn rows_are_about_sixteen_units() {
-        for row in ROWS.iter().skip(1) {
+        for row in ROWS.iter() {
             let w: f32 = row.iter().map(|k| k.width + k.gap).sum();
             assert!((15.0..=16.5).contains(&w), "row width {w}");
         }

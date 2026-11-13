@@ -18,6 +18,11 @@ pub trait Wire: Send {
     fn send_feature(&mut self, frame: &[u8]) -> Result<(), String>;
     /// Cable: get feature report 0x06 (report id first).
     fn get_feature(&mut self) -> Result<Vec<u8>, String>;
+    /// Whether reports the keyboard sends on its own can be read here without asking for
+    /// anything (the receiver through hidapi; not the cable, not the browser's page module).
+    fn listens(&self) -> bool {
+        false
+    }
     /// Wait between packets (the simulator doesn't).
     fn pause(&mut self, ms: u64) {
         #[cfg(not(target_arch = "wasm32"))]
@@ -41,6 +46,9 @@ pub trait Wire: Send {
 pub struct Session {
     wire: Box<dyn Wire>,
     cmds: p::Cmds,
+    /// The keyboard's settings may differ from what was last read: it said so
+    /// ([`p::WIRELESS_CHANGED`]) or this session wrote to it.
+    changed: bool,
 }
 
 /// Said when the receiver answers nothing: the keyboard is asleep or out of range.
@@ -51,7 +59,26 @@ impl Session {
     /// Talk over `wire`.
     pub fn new(wire: Box<dyn Wire>) -> Session {
         let cmds = wire.link().cmds();
-        Session { wire, cmds }
+        Session { wire, cmds, changed: true }
+    }
+
+    /// Whether the keyboard's own change notices reach this session (see [`Wire::listens`]).
+    pub fn listens(&self) -> bool {
+        self.wire.listens()
+    }
+
+    /// Whether the keyboard's settings may have changed since this was last asked: looks at
+    /// what the keyboard has sent on its own, without sending anything.
+    pub fn take_changed(&mut self) -> Result<bool, String> {
+        if self.wire.listens() {
+            self.drain()?;
+        }
+        Ok(std::mem::take(&mut self.changed))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn changed_for_test(&mut self, changed: bool) {
+        self.changed = changed;
     }
 
     /// Wait (the simulator doesn't).
@@ -72,6 +99,7 @@ impl Session {
             match self.wire.recv_report(timeout_ms)? {
                 None => return Ok(None),
                 Some(pk) => {
+                    self.changed |= p::is_change_notice(&pk);
                     if let Some(r) = p::parse_reply(&pk) {
                         return Ok(Some((pk, r)));
                     }
@@ -82,7 +110,9 @@ impl Session {
     }
 
     fn drain(&mut self) -> Result<(), String> {
-        while self.wire.recv_report(0)?.is_some() {}
+        while let Some(pk) = self.wire.recv_report(0)? {
+            self.changed |= p::is_change_notice(&pk);
+        }
         Ok(())
     }
 
@@ -214,6 +244,7 @@ impl Session {
     // -------------------------------------------------------------- either
 
     fn write(&mut self, cmd: u8, sub: u8, data: &[u8], delay_ms: u64) -> Result<(), String> {
+        self.changed = true;
         if let Some(r) = self.wire.block_write(cmd, sub, data, delay_ms) {
             return r;
         }
@@ -280,6 +311,19 @@ impl Session {
         self.write(self.cmds.led, 0, &b, 15)?;
         p::lighting_from_block(&b)
             .ok_or_else(|| "The keyboard reports an effect this app doesn't know.".into())
+    }
+
+    /// The keyboard's OS mode (Fn+W / Fn+E / Fn+Q), settings byte 27.
+    pub fn os_mode(&mut self) -> Result<u8, String> {
+        Ok(self.led_block()?[p::OS_MODE_OFFSET])
+    }
+
+    /// Set the OS mode, then read it back.
+    pub fn set_os_mode(&mut self, mode: u8) -> Result<u8, String> {
+        let mut b = self.led_block()?;
+        b[p::OS_MODE_OFFSET] = mode;
+        self.write(self.cmds.led, 0, &b, 15)?;
+        self.os_mode()
     }
 
     /// The selected effect and sleep timer.

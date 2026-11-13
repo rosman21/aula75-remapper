@@ -25,6 +25,9 @@ enum Call {
     Keymap(u8),
     Assign(u8, u8, String, u8),
     Restore(u8),
+    SetOsMode(u8),
+    MacKeys,
+    KeyboardMode,
     Targets,
     Macros,
     AddMacro(String),
@@ -61,6 +64,9 @@ impl Call {
             "keymap" => Call::Keymap(byte(a, 0)),
             "assignKey" => Call::Assign(byte(a, 0), byte(a, 1), text(a, 2), byte(a, 3)),
             "restoreLayer" => Call::Restore(byte(a, 0)),
+            "setOsMode" => Call::SetOsMode(byte(a, 0)),
+            "macKeys" => Call::MacKeys,
+            "keyboardMode" => Call::KeyboardMode,
             "targets" => Call::Targets,
             "macroList" => Call::Macros,
             "addMacro" => Call::AddMacro(text(a, 0)),
@@ -93,6 +99,9 @@ impl Call {
             Call::Keymap(layer) => s.keymap(layer),
             Call::Assign(layer, index, target, mods) => s.assign(layer, index, &target, mods),
             Call::Restore(layer) => s.restore(layer),
+            Call::SetOsMode(mode) => s.set_os_mode(mode),
+            Call::MacKeys => s.mac_keys(),
+            Call::KeyboardMode => s.keyboard_mode(),
             Call::Targets => s.targets(),
             Call::Macros => s.macro_list(),
             Call::AddMacro(name) => s.add_macro(&name),
@@ -164,11 +173,13 @@ impl Aula {
     /// Run `call` against the journal so far: its value, or the page module's next step.
     fn replay(&self, call: Call, journal: Vec<(Json, Json)>) -> Answer {
         let mut s = self.service.lock().unwrap_or_else(|e| e.into_inner());
+        let layers = s.layer_cache();
         crate::remote::begin(journal);
         let j = call.run(&mut s);
         match crate::remote::finish() {
             None => Answer::Now(to_value(&j)),
             Some((op, journal)) => {
+                s.rewind(layers);
                 let body = serde_json::json!({ "aula": 1, "op": op, "journal": journal });
                 Answer::Later(Request::native(serde_json::to_vec(&body).unwrap_or_default()))
             }

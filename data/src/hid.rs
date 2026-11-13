@@ -97,7 +97,7 @@ pub fn scan(api: &mut HidApi) -> Result<Scan, String> {
     for d in api.device_list() {
         s.receiver |= is_receiver_config(d);
         s.wired |= is_wired_config(d);
-        s.bluetooth |= d.vendor_id() == p::RECEIVER_VID && d.product_id() == p::BLUETOOTH_PID;
+        s.bluetooth |= d.vendor_id() == p::RECEIVER_VID && p::BLUETOOTH_PIDS.contains(&d.product_id());
     }
     Ok(s)
 }
@@ -146,6 +146,10 @@ pub struct HidWire {
 impl Wire for HidWire {
     fn link(&self) -> Link {
         self.link
+    }
+
+    fn listens(&self) -> bool {
+        self.link == Link::Receiver
     }
 
     fn send_report(&mut self, packet: &[u8]) -> Result<(), String> {
