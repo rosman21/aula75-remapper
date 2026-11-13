@@ -56,16 +56,18 @@ pub fn picker_layout() -> Json {
             .map(|(r, row)| {
                 let keys: Vec<Json> = row
                     .iter()
-                    // The knob's press is no key: its action is listed with the special ones.
-                    .filter(|k| k.index != layout::KNOB_INDEX)
                     .map(|k| {
                         let target = keycodes::target_of(k.factory).0;
+                        // The knob is drawn in its place, right of F12: picking it gives a key the
+                        // knob's own press, which is also listed with the special actions.
+                        let knob = k.index == layout::KNOB_INDEX;
                         // A 1u modifier shows only its symbol, so it fits.
                         let mut l = k.label.to_string();
                         if k.width <= 1.0 && l.starts_with(['⌃', '⌘', '⌥', '⇧']) {
                             l = l.chars().take(1).collect();
                         }
-                        json!({ "target": target, "slug": slug(&target), "label": l, "width": k.width, "gap": k.gap })
+                        let id = if knob { "knob".to_string() } else { slug(&target) };
+                        json!({ "target": target, "slug": id, "label": l, "width": k.width, "gap": k.gap })
                     })
                     .collect();
                 json!({ "id": r, "keys": keys })
@@ -1553,10 +1555,11 @@ mod tests {
         assert_eq!((&k["action"], &k["changed"]), (&json!("Mute"), &json!(true)));
         assert_eq!(s.assign(0, layout::KNOB_INDEX, "x:29", 0)["ok"], true); // and back
         assert_eq!(knob(&mut s)["changed"], false);
-        // It is offered with the special actions, not as a key on the picker's board.
+        // It is offered with the special actions, and drawn on the picker's board right of F12.
         let special = s.targets()[0].clone();
         assert!(special["targets"].as_array().unwrap().iter().any(|t| t["id"] == "x:29"));
-        assert!(!picker_layout().to_string().contains("Knob"));
+        let top = picker_layout()[0]["keys"].clone();
+        assert_eq!((&top[13]["label"], &top[13]["target"], &top[13]["slug"]), (&json!("Knob"), &json!("x:29"), &json!("knob")));
     }
 
     #[test]
